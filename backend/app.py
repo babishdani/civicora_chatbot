@@ -61,7 +61,7 @@ def home():
 # --------------------------------------------------
 # Login - Development Testing Only
 # --------------------------------------------------
-(@app.post"/login")
+@app.post("/login")
 def login(data: LoginRequest):
     role = data.role.strip().lower()
     mobile_number = data.mobile_number.strip()
