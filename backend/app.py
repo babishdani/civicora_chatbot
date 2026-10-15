@@ -27,6 +27,7 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "http://localhost:8501",
         "http://127.0.0.1:8501",
+        "https://citizen-service-chatbot.vercel.app",
     ],
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
