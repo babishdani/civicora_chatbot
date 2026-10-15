@@ -1059,8 +1059,9 @@ def ask_database(question, user_id=None, role="citizen"):
                 return "\n\n".join(lines)
 
         # ADMIN / COMMANDER: show all grievances
-        all_grievance_questions = (
             
+        
+        # ADMIN / COMMANDER: show all grievances
         all_grievance_questions = (
             "show all grievances",
             "show all the grievances",
@@ -1082,7 +1083,14 @@ def ask_database(question, user_id=None, role="citizen"):
             "list every grievance",
         )
 
-        )
+        if (
+            role in ("admin", "commander")
+            and any(
+                phrase in text
+                for phrase in all_grievance_questions
+            )
+        ):
+
 
         if (
             role in ("admin", "commander")
