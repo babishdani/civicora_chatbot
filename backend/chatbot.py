@@ -7,7 +7,7 @@ from sql_validator import validate_sql
 
 MODEL_NAME = os.getenv(
     "GEMINI_MODEL",
-    "gemini-2.5-flash"
+    "gemini-3.8-flash"
 )
 MAX_RESULTS = 20
 ALLOWED_ROLES = {"admin", "commander", "citizen"}
