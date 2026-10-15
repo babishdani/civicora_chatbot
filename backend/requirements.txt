@@ -7,3 +7,4 @@ python-dotenv
 PyJWT
 ollama
 sqlglot
+google-genai

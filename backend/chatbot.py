@@ -1,10 +1,14 @@
 import re
-import ollama
+import os
+from google import genai
 from schema_prompt import SCHEMA
 from db import execute_query, get_connection
 from sql_validator import validate_sql
 
-MODEL_NAME = "qwen2.5:7b"
+MODEL_NAME = os.getenv(
+    "GEMINI_MODEL",
+    "gemini-2.5-flash"
+)
 MAX_RESULTS = 20
 ALLOWED_ROLES = {"admin", "commander", "citizen"}
 
@@ -16,6 +20,30 @@ FORBIDDEN_IDENTIFIERS = {
     "mobile_number", "phone_number", "email", "address",
     "reporter_name", "reporter_contact",
 }
+
+def call_gemini(prompt):
+    """Send a prompt to Gemini Cloud API."""
+
+    api_key = os.getenv("GEMINI_API_KEY")
+
+    if not api_key:
+        raise RuntimeError(
+            "GEMINI_API_KEY is not configured."
+        )
+
+    client = genai.Client(api_key=api_key)
+
+    response = client.models.generate_content(
+        model=MODEL_NAME,
+        contents=prompt,
+    )
+
+    if not response.text:
+        raise RuntimeError(
+            "Gemini returned an empty response."
+        )
+
+    return response.text.strip()
 
 # --------------------------------------------------
 # GENERAL HELPERS
@@ -729,12 +757,7 @@ User question:
 SQL:
 """
 
-    response = ollama.chat(
-        model=MODEL_NAME,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    sql = response["message"]["content"].strip()
+    sql = call_gemini(prompt)
 
     # Remove optional Markdown code fences.
     sql = re.sub(
@@ -942,12 +965,7 @@ Authorized database results:
 Provide a human-readable answer:
 """
 
-    response = ollama.chat(
-        model=MODEL_NAME,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    return response["message"]["content"].strip()
+    return call_gemini(prompt)
 
 
 # --------------------------------------------------
