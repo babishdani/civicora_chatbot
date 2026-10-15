@@ -12,6 +12,8 @@ def get_connection():
         user=DB_CONFIG["user"],
         password=DB_CONFIG["password"],
         database=DB_CONFIG["database"],
+        ssl_disabled=False,
+        ssl_verify_cert=False,
     )
 
 
