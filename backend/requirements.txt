@@ -1,6 +1,8 @@
+text
 fastapi
 uvicorn[standard]
 pydantic
 mysql-connector-python
 requests
 python-dotenv
+PyJWT
