@@ -1060,12 +1060,28 @@ def ask_database(question, user_id=None, role="citizen"):
 
         # ADMIN / COMMANDER: show all grievances
         all_grievance_questions = (
+            
+        all_grievance_questions = (
             "show all grievances",
+            "show all the grievances",
+            "show all grievance",
+            "show all the grievance",
             "list all grievances",
+            "list all the grievances",
+            "list all grievance",
+            "list all the grievance",
             "display all grievances",
+            "display all the grievances",
+            "display all grievance",
+            "display all the grievance",
             "all grievances",
+            "all the grievances",
+            "all grievance",
+            "all the grievance",
             "show every grievance",
             "list every grievance",
+        )
+
         )
 
         if (
