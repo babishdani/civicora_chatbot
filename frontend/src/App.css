@@ -2011,3 +2011,49 @@ body {
     animation: none;
   }
 }
+
+/* Fix oversized hero robot image */
+.welcome-section {
+  min-height: auto;
+  height: auto;
+  overflow: hidden;
+  padding-bottom: 24px;
+}
+
+.welcome-robot {
+  max-height: 220px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.welcome-robot img {
+  width: 100%;
+  max-width: 280px;
+  height: 220px;
+  object-fit: contain;
+  display: block;
+}
+
+/* Keep the welcome content within the viewport */
+.chat-scroll {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.welcome-banner {
+  min-height: 0;
+}
+
+/* Responsive layout */
+@media (max-width: 768px) {
+  .welcome-robot {
+    max-height: 150px;
+  }
+
+  .welcome-robot img {
+    height: 150px;
+    max-width: 200px;
+  }
+}
