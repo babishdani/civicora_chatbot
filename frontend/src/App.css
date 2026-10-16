@@ -1688,3 +1688,326 @@ body {
     font-size: 12px;
   }
 }
+
+
+/* ===== CivicAI Cyberpunk Gaming Theme ===== */
+
+.login-page {
+  isolation: isolate;
+  color: #f3f5ff;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(4, 8, 25, 0.91),
+      rgba(12, 15, 45, 0.78),
+      rgba(29, 13, 59, 0.88)
+    ),
+    url("/cyber_city_bg.jpg") center / cover no-repeat,
+    #080d20;
+}
+
+/* Animated neon atmosphere */
+.login-page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      ellipse at 15% 20%,
+      rgba(0, 225, 255, 0.17),
+      transparent 42%
+    ),
+    radial-gradient(
+      ellipse at 85% 75%,
+      rgba(151, 62, 255, 0.23),
+      transparent 42%
+    );
+  animation: cyber-atmosphere 8s ease-in-out infinite alternate;
+}
+
+.login-page::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.14;
+  background-image:
+    linear-gradient(rgba(113, 132, 255, 0.18) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(113, 132, 255, 0.18) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, black, transparent 90%);
+}
+
+/* Dark glass login card */
+.login-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(132, 151, 255, 0.38);
+  border-radius: 24px;
+  color: #eef1ff;
+  background: linear-gradient(
+    145deg,
+    rgba(18, 25, 54, 0.91),
+    rgba(12, 16, 39, 0.94)
+  );
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow:
+    0 0 0 1px rgba(103, 111, 255, 0.08),
+    0 25px 90px rgba(0, 0, 0, 0.48),
+    0 0 45px rgba(91, 88, 255, 0.13);
+  animation: cyber-card-entry 0.7s ease both;
+}
+
+.login-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #00e5ff,
+    #9c6bff,
+    transparent
+  );
+  box-shadow: 0 0 18px rgba(0, 229, 255, 0.6);
+}
+
+/* Brand */
+.login-brand-name {
+  color: #f5f6ff;
+  text-shadow: 0 0 20px rgba(121, 126, 255, 0.24);
+}
+
+.login-brand-name span {
+  color: #a3a6ff;
+}
+
+.login-brand-caption {
+  color: #9ba8d1;
+}
+
+.login-brand-icon {
+  background: linear-gradient(135deg, #00c9ff, #6658ff 65%, #a855f7);
+  box-shadow:
+    0 0 22px rgba(0, 201, 255, 0.24),
+    inset 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+
+/* Main robot icon */
+.login-orb {
+  border-color: rgba(113, 222, 255, 0.65);
+  background: linear-gradient(145deg, #20d9ff, #6964ff 58%, #9d4edd);
+  box-shadow:
+    0 0 25px rgba(0, 211, 255, 0.25),
+    0 0 55px rgba(113, 84, 255, 0.23),
+    inset 0 2px 3px rgba(255, 255, 255, 0.55);
+}
+
+.login-orb-ring {
+  border-color: rgba(91, 216, 255, 0.42);
+}
+
+.login-orb-sparkle {
+  color: #75eaff;
+  filter: drop-shadow(0 0 8px #00cfff);
+}
+
+/* Heading and supporting text */
+.login-eyebrow {
+  color: #70e7ff;
+}
+
+.login-heading h1 {
+  color: #f6f7ff;
+  text-shadow: 0 0 28px rgba(105, 123, 255, 0.2);
+}
+
+.login-heading p {
+  color: #a5b0d1;
+}
+
+/* Account role selector */
+.login-form > label {
+  color: #dce4ff;
+}
+
+.role-selector {
+  border-color: rgba(135, 151, 220, 0.2);
+  background: rgba(5, 10, 29, 0.62);
+}
+
+.role-option {
+  color: #a0accd;
+}
+
+.role-option:hover {
+  color: #ffffff;
+  background: rgba(111, 127, 255, 0.12);
+}
+
+.role-option.selected {
+  border-color: rgba(94, 219, 255, 0.55);
+  color: #ffffff;
+  background: linear-gradient(
+    135deg,
+    rgba(0, 190, 255, 0.19),
+    rgba(119, 91, 255, 0.27)
+  );
+  box-shadow:
+    0 0 16px rgba(0, 190, 255, 0.1),
+    inset 0 0 12px rgba(108, 103, 255, 0.08);
+}
+
+/* Input field */
+.login-input-wrap {
+  border-color: rgba(139, 157, 219, 0.3);
+  color: #9ba9d0;
+  background: rgba(5, 10, 28, 0.68);
+}
+
+.login-input-wrap:focus-within {
+  border-color: #50dfff;
+  box-shadow:
+    0 0 0 3px rgba(80, 223, 255, 0.1),
+    0 0 20px rgba(80, 223, 255, 0.08);
+}
+
+.login-input-wrap input {
+  color: #ffffff;
+}
+
+.login-input-wrap input::placeholder {
+  color: #8997bb;
+}
+
+.login-input-action {
+  color: #a6b6da;
+}
+
+.login-input-action:hover {
+  color: #65e6ff;
+}
+
+/* Neon sign-in button */
+.login-submit {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(154, 216, 255, 0.34);
+  background: linear-gradient(105deg, #087cf0, #6256f5 58%, #9347ec);
+  box-shadow:
+    0 0 18px rgba(62, 119, 255, 0.23),
+    0 8px 25px rgba(49, 67, 196, 0.2);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.login-submit::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 65%;
+  height: 100%;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    rgba(255, 255, 255, 0.25),
+    transparent
+  );
+  transform: skewX(-20deg);
+  transition: left 0.55s ease;
+}
+
+.login-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 28px rgba(44, 173, 255, 0.32),
+    0 10px 30px rgba(86, 74, 245, 0.3);
+}
+
+.login-submit:hover:not(:disabled)::before {
+  left: 140%;
+}
+
+/* Security and footer */
+.login-security {
+  color: #a0afd0;
+}
+
+.login-security svg {
+  color: #4ce7bd;
+}
+
+.login-footer {
+  color: #8492b8;
+}
+
+.login-bottom-brand {
+  color: #9ba9cb;
+}
+
+.login-bottom-brand svg {
+  color: #58e6bd;
+}
+
+/* Error message */
+.login-error {
+  border-color: rgba(255, 105, 139, 0.35);
+  color: #ffb5c7;
+  background: rgba(112, 18, 48, 0.28);
+}
+
+/* Focus visibility */
+.login-page button:focus-visible,
+.login-page input:focus-visible {
+  outline-color: #62e5ff;
+}
+
+/* Animations */
+@keyframes cyber-atmosphere {
+  from {
+    opacity: 0.65;
+    transform: scale(1);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes cyber-card-entry {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Mobile readability */
+@media (max-width: 480px) {
+  .login-page {
+    background-position: center;
+    padding: 20px 13px 55px;
+  }
+
+  .login-card {
+    background: rgba(12, 17, 42, 0.96);
+  }
+}
+
+/* Respect accessibility settings */
+@media (prefers-reduced-motion: reduce) {
+  .login-card,
+  .login-page::before {
+    animation: none;
+  }
+}
