@@ -1,6 +1,7 @@
 import re
 import os
 from google import genai
+import time
 from schema_prompt import SCHEMA
 from db import execute_query, get_connection
 from sql_validator import validate_sql
@@ -21,29 +22,97 @@ FORBIDDEN_IDENTIFIERS = {
     "reporter_name", "reporter_contact",
 }
 
+
 def call_gemini(prompt):
-    """Send a prompt to Gemini Cloud API."""
+    """Call Gemini with retries and a fallback model."""
 
     api_key = os.getenv("GEMINI_API_KEY")
 
     if not api_key:
-        raise RuntimeError(
-            "GEMINI_API_KEY is not configured."
-        )
+        raise RuntimeError("GEMINI_API_KEY is not configured.")
 
     client = genai.Client(api_key=api_key)
 
-    response = client.models.generate_content(
-        model=MODEL_NAME,
-        contents=prompt,
+    fallback_model = os.getenv(
+        "GEMINI_FALLBACK_MODEL",
+        "gemini-3.6-flash",
     )
 
-    if not response.text:
-        raise RuntimeError(
-            "Gemini returned an empty response."
-        )
+    models_to_try = [MODEL_NAME]
 
-    return response.text.strip()
+    if fallback_model != MODEL_NAME:
+        models_to_try.append(fallback_model)
+
+    last_error = None
+
+    for model in models_to_try:
+        for attempt in range(3):
+            try:
+                print(
+                    f"Trying Gemini model: {model} "
+                    f"(attempt {attempt + 1}/3)"
+                )
+
+                response = client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                )
+
+                if not response.text:
+                    raise RuntimeError(
+                        "Gemini returned an empty response."
+                    )
+
+                if model != MODEL_NAME:
+                    print(f"Fallback model succeeded: {model}")
+
+                return response.text.strip()
+
+            except Exception as error:
+                last_error = error
+                error_text = str(error).upper()
+                error_code = (
+                    getattr(error, "code", None)
+                    or getattr(error, "status_code", None)
+                )
+
+                temporary_error = (
+                    error_code in (429, 500, 502, 503, 504)
+                    or any(
+                        marker in error_text
+                        for marker in (
+                            "503",
+                            "UNAVAILABLE",
+                            "429",
+                            "RESOURCE_EXHAUSTED",
+                            "500 INTERNAL",
+                            "502",
+                            "504",
+                            "DEADLINE_EXCEEDED",
+                            "INTERNAL SERVER ERROR",
+                        )
+                    )
+                )
+
+                if not temporary_error:
+                    raise
+
+                print(
+                    f"Temporary Gemini error on {model}: {error}"
+                )
+
+                if attempt < 2:
+                    wait_seconds = 2 ** attempt
+                    print(f"Retrying in {wait_seconds} seconds...")
+                    time.sleep(wait_seconds)
+                else:
+                    print(f"Retries exhausted for model: {model}")
+
+    raise RuntimeError(
+        "Gemini primary and fallback models are unavailable. "
+        "Please try again shortly."
+    ) from last_error
+
 
 # --------------------------------------------------
 # GENERAL HELPERS
