@@ -2057,3 +2057,51 @@ body {
     max-width: 200px;
   }
 }
+
+/* Sidebar layout: keep the top and bottom fixed */
+.sidebar {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Keep brand, new chat and workspace navigation fixed */
+.sidebar > .brand,
+.sidebar > .new-chat-button,
+.sidebar > .nav-label:not(.recent-label),
+.sidebar > .nav-list {
+  flex-shrink: 0;
+}
+
+/* Recent conversations title stays fixed */
+.sidebar > .recent-label {
+  flex-shrink: 0;
+  margin-top: 20px;
+}
+
+/* Only the recent conversation list scrolls */
+.sidebar > .history-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #59658a transparent;
+}
+
+/* Keep assistance card and authenticated session fixed */
+.sidebar > .sidebar-bottom {
+  flex-shrink: 0;
+  margin-top: auto;
+  overflow: visible;
+}
+
+/* Prevent the bottom profile from shrinking */
+.sidebar .help-card,
+.sidebar .profile-row {
+  flex-shrink: 0;
+}

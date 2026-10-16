@@ -78,12 +78,10 @@ export default function App() {
 
     const cleanMobile = mobile.trim();
 
-    // Validate 10-digit Indian mobile number
-    if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
-      setMobileError("Enter the correct mobile number.");
-      return;
-    }
-
+if (!/^\d{10}$/.test(cleanMobile)) {
+  setMobileError("Enter a valid 10-digit mobile number.");
+  return;
+}
     setLoginLoading(true);
 
     try {
@@ -319,7 +317,6 @@ export default function App() {
                 placeholder="Enter your 10-digit mobile number"
                 value={mobile}
                 maxLength={10}
-                pattern="[6-9][0-9]{9}"
                 onChange={(event) => {
                   const digits = event.target.value
                     .replace(/\D/g, "")
