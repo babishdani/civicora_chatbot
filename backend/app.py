@@ -62,17 +62,20 @@ def home():
 # --------------------------------------------------
 # Login - Development Testing Only
 # --------------------------------------------------
+
 @app.post("/login")
 def login(data: LoginRequest):
     role = data.role.strip().lower()
     mobile_number = data.mobile_number.strip()
 
+    # Validate role
     if role not in ALLOWED_ROLES:
         raise HTTPException(
             status_code=400,
             detail="Invalid role.",
         )
 
+    # Validate mobile number
     if not mobile_number:
         raise HTTPException(
             status_code=400,
@@ -85,14 +88,22 @@ def login(data: LoginRequest):
             role=role,
         )
 
+    except HTTPException:
+        raise
+
     except Exception as error:
+        import traceback
+
         print("LOGIN ERROR TYPE:", type(error).__name__)
-        print("LOGIN ERROR DETAILS:", str(error))
+        print("LOGIN ERROR DETAILS:", repr(error))
+        traceback.print_exc()
+
         raise HTTPException(
             status_code=500,
             detail="Login service is temporarily unavailable.",
-        )
+        ) from error
 
+    # Validate login result
     if not isinstance(result, dict) or not result.get("success"):
         raise HTTPException(
             status_code=401,
@@ -100,6 +111,7 @@ def login(data: LoginRequest):
         )
 
     return result
+
 
 
 # --------------------------------------------------

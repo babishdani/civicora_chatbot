@@ -19,6 +19,7 @@ def login_user(mobile_number, password=None, role=None):
     Use only with dummy data in local testing.
     """
 
+    # Validate mobile number
     if not isinstance(mobile_number, str):
         return {
             "success": False,
@@ -27,6 +28,7 @@ def login_user(mobile_number, password=None, role=None):
 
     mobile_number = mobile_number.strip()
 
+    # Validate role
     if not isinstance(role, str):
         return {
             "success": False,
@@ -41,6 +43,7 @@ def login_user(mobile_number, password=None, role=None):
             "message": "Invalid credentials",
         }
 
+    # Parameterized SQL query
     query = """
         SELECT id, role
         FROM users
@@ -58,11 +61,11 @@ def login_user(mobile_number, password=None, role=None):
         )
 
     except Exception as error:
-        # Development debugging: show the database error.
-        print("DATABASE ERROR TYPE:", type(error).__name__)
-        print("DATABASE ERROR DETAILS:", repr(error))
+        print("LOGIN DATABASE ERROR:", type(error).__name__)
+        print("LOGIN DATABASE DETAILS:", repr(error))
         raise
 
+    # Validate database result
     if not result:
         return {
             "success": False,
@@ -78,6 +81,7 @@ def login_user(mobile_number, password=None, role=None):
             "message": "Invalid credentials",
         }
 
+    # Generate JWT token
     now = datetime.now(timezone.utc)
 
     payload = {

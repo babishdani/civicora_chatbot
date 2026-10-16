@@ -3,6 +3,7 @@ import mysql.connector
 
 from config import DB_CONFIG
 from privacy import sanitize_result
+from sql_validator import validate_sql
 
 
 def get_connection():
@@ -18,14 +19,29 @@ def get_connection():
 
 
 def execute_query(query, params=None, role="citizen"):
-    conn = get_connection()
-    cursor = conn.cursor()
+    conn = None
+    cursor = None
 
     try:
+        # Validate SQL before opening a database cursor.
+        if not validate_sql(query):
+            print("SQL VALIDATION FAILED")
+            print("Query received:", repr(query))
+
+            raise PermissionError(
+                "Unsafe or invalid SQL query was blocked."
+            )
+
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        # Execute using parameterized values.
         cursor.execute(query, params or ())
 
+        # Return results for SELECT queries.
         if cursor.description is not None:
             rows = cursor.fetchall()
+
             columns = [
                 column[0]
                 for column in cursor.description
@@ -37,13 +53,19 @@ def execute_query(query, params=None, role="citizen"):
                 role=role,
             )
 
-        conn.commit()
-        return {"message": "Success"}
+        # Do not allow non-result queries.
+        raise PermissionError(
+            "Only read-only SELECT queries are allowed."
+        )
 
     except Exception:
-        conn.rollback()
+        if conn is not None and conn.is_connected():
+            conn.rollback()
         raise
 
     finally:
-        cursor.close()
-        conn.close()
+        if cursor is not None:
+            cursor.close()
+
+        if conn is not None and conn.is_connected():
+            conn.close()

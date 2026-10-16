@@ -95,7 +95,11 @@ def is_sensitive_request(question):
 
 def format_records(rows, columns=None):
     if not rows:
-        return "No matching records were found."
+        return (
+            "I'm sorry, but I couldn't find any matching records "
+            "in our database. For further assistance, please contact "
+            "our support team at 1234123414. We'll be happy to help you."
+        )
 
     lines = []
 
@@ -225,22 +229,37 @@ def get_grievance_status_counts():
 
 def format_status_counts(rows):
     if not rows:
-        return "No grievance status records were found."
+        return (
+            "I'm sorry, but I couldn't find any matching records in our database. "
+            "For further assistance, please contact our support team at 1234123414. "
+            "We'll be happy to help you."
+        )
 
-    lines = ["Grievances count by status:"]
+    status_map = {
+        "GST_SUBMITTED": "Submitted",
+        "GST_IN_PROGRESS": "In Progress",
+        "GST_RESOLVED": "Resolved",
+        "GST_REJECTED": "Rejected",
+        "GST_CANCELLED": "Cancelled",
+        "GST_CITIZEN_CLOSED": "Closed by Citizen",
+    }
+
+    lines = ["Grievance Count by Status:"]
+
     total = 0
 
     for row in rows:
-        status = get_value(row, "status_code", 0, "Unknown")
-        count = int(get_value(row, "total", 1, 0) or 0)
+        status_code = get_value(row, "status_code", 0, "Unknown")
+        count = get_value(row, "count", 1, 0)
+
+        status = status_map.get(status_code, status_code)
 
         lines.append(f"- {status}: {count}")
-        total += count
+        total += int(count or 0)
 
-    lines.append(f"\nTotal grievances: {total}")
+    lines.append(f"\nTotal Grievances: {total}")
 
     return "\n".join(lines)
-
 
 def get_village_grievance_counts():
     return execute_query(
@@ -256,22 +275,38 @@ def get_village_grievance_counts():
     )
 
 
+
 def format_village_counts(rows):
     if not rows:
         return "No village grievance records were found."
 
-    lines = ["Grievances count by village:"]
+    village_map = {
+        "VIL_ADANUR": "Adanur",
+        "VIL_KEELNATTUKURICHI": "Keelnattukurichi",
+        "VIL_SIVALARPATTI": "Sivalarpatti",
+        "VIL_ACKANAICKENPATTI": "Ackanaickenpatti",
+        "VIL_MELANAMBIPURAM": "Melanambipuram",
+        "VIL_THITTANKULAM": "Thittankulam",
+    }
+
+    lines = ["Grievance Counts by Village:"]
 
     for row in rows:
         village = get_value(row, "village_code", 0, "Unknown")
         count = get_value(row, "total_grievances", 1, 0)
-        lines.append(f"- {village}: {count}")
+
+        readable_village = village_map.get(
+            str(village), str(village)
+        )
+
+        lines.append(f"- {readable_village}: {count}")
 
     lines.append(
-        f"\nVillages with recorded grievances: {len(rows)}"
+        f"\nVillages with Recorded Grievances: {len(rows)}"
     )
 
     return "\n".join(lines)
+
 
 
 # --------------------------------------------------
@@ -303,24 +338,61 @@ def get_unresolved_grievances():
 
 def format_unresolved_grievances(rows):
     if not rows:
-        return "No unresolved grievances were found."
+        return (
+            "I'm sorry, but I couldn't find any matching records in our database. "
+            "For further assistance, please contact our support team at 1234123414. "
+            "We'll be happy to help you."
+        )
 
-    lines = ["Unresolved grievances:"]
+    category_map = {
+        "CAT_TRAFFIC_ROAD_SAFETY": "Traffic and Road Safety",
+        "CAT_WATER_SUPPLY": "Water Supply",
+        "CAT_STREET_LIGHT": "Street Light",
+        "CAT_ROAD_DAMAGE": "Road Damage",
+    }
+
+    status_map = {
+        "GST_SUBMITTED": "Submitted",
+        "GST_IN_PROGRESS": "In Progress",
+        "GST_RESOLVED": "Resolved",
+        "GST_REJECTED": "Rejected",
+        "GST_CANCELLED": "Cancelled",
+        "GST_CITIZEN_CLOSED": "Closed by Citizen",
+    }
+
+    stage_map = {
+        "WS_UNTRIAGED": "Awaiting Initial Review",
+        "WS_LOGGED": "Logged",
+        "WS_VERIFICATION": "Verification",
+        "WS_MOBILIZATION": "Mobilization",
+        "WS_EXECUTION": "Execution",
+        "WS_INSPECTION": "Inspection",
+        "WS_RESOLUTION": "Resolution",
+        "WS_CLOSED": "Closed",
+    }
+
+    lines = ["Unresolved Grievances:"]
 
     for index, row in enumerate(rows, start=1):
         code = get_value(row, "grievance_code", 0, "Unknown")
         title = get_value(row, "title", 1, "Untitled")
-        category = get_value(row, "category_code", 2, "Unknown")
-        status = get_value(row, "status_code", 3, "Unknown")
-        stage = get_value(row, "work_stage_code", 4, "Unknown")
+        category_code = get_value(row, "category_code", 2, "Unknown")
+        status_code = get_value(row, "status_code", 3, "Unknown")
+        stage_code = get_value(row, "work_stage_code", 4, "Unknown")
+
+        category = category_map.get(category_code, category_code)
+        status = status_map.get(status_code, status_code)
+        stage = stage_map.get(stage_code, stage_code)
 
         lines.append(
-            f"{index}. {code} - {title} | "
-            f"Category: {category} | "
-            f"Status: {status} | Stage: {stage}"
+            f"\n{index}. Grievance ID: {code}\n"
+            f"   Title: {title}\n"
+            f"   Category: {category}\n"
+            f"   Status: {status}\n"
+            f"   Work Stage: {stage}"
         )
 
-    lines.append(f"\nTotal unresolved grievances: {len(rows)}")
+    lines.append(f"\nTotal Unresolved Grievances: {len(rows)}")
 
     return "\n".join(lines)
 
@@ -342,25 +414,69 @@ def get_pending_grievances():
     )
 
 
+def get_resolved_grievances():
+    return execute_query(
+        """
+        SELECT
+            grievance_code,
+            title,
+            category_code,
+            status_code
+        FROM grievances
+        WHERE status_code = 'GST_RESOLVED'
+        ORDER BY created_at DESC
+        LIMIT 20
+        """,
+        role="admin",
+    )
+
+
+
 def format_pending_grievances(rows):
     if not rows:
         return "No pending grievances were found."
 
-    lines = ["Pending grievances:"]
+    status_map = {
+        "GST_SUBMITTED": "Submitted",
+        "GST_IN_PROGRESS": "In Progress",
+        "GST_RESOLVED": "Resolved",
+        "GST_REJECTED": "Rejected",
+        "GST_CANCELLED": "Cancelled",
+        "GST_CITIZEN_CLOSED": "Closed by Citizen",
+    }
 
-    for row in rows:
+    category_map = {
+        "CAT_TRAFFIC_ROAD_SAFETY": "Traffic and Road Safety",
+        "CAT_WATER_SUPPLY": "Water Supply",
+        "CAT_STREET_LIGHT": "Street Light",
+        "CAT_ROAD_DAMAGE": "Road Damage",
+    }
+
+    lines = ["Pending Grievances:"]
+
+    for index, row in enumerate(rows, start=1):
         code = get_value(row, "grievance_code", 0, "Unknown")
         title = get_value(row, "title", 1, "Untitled")
         category = get_value(row, "category_code", 2, "Unknown")
         status = get_value(row, "status_code", 3, "Unknown")
 
-        lines.append(
-            f"- {code}: {title} | {category} | {status}"
+        readable_category = category_map.get(
+            str(category), str(category)
+        )
+        readable_status = status_map.get(
+            str(status), str(status)
         )
 
-    lines.append(f"\nTotal pending grievances: {len(rows)}")
+        lines.append(
+            f"{index}. Grievance ID: {code}\n"
+            f"   Issue: {title}\n"
+            f"   Category: {readable_category}\n"
+            f"   Status: {readable_status}"
+        )
 
-    return "\n".join(lines)
+    lines.append(f"\nTotal Pending Grievances: {len(rows)}")
+
+    return "\n\n".join(lines)
 
 
 # --------------------------------------------------
@@ -447,27 +563,46 @@ def get_high_priority_resolved_grievances():
     )
 
 
+
 def format_high_priority_grievances(rows):
     if not rows:
         return "No matching high-priority grievances were found."
 
-    lines = ["High-priority grievances:"]
+    status_map = {
+        "GST_SUBMITTED": "Submitted",
+        "GST_IN_PROGRESS": "In Progress",
+        "GST_RESOLVED": "Resolved",
+        "GST_REJECTED": "Rejected",
+        "GST_CANCELLED": "Cancelled",
+        "GST_CITIZEN_CLOSED": "Closed by Citizen",
+    }
 
-    for row in rows:
+    lines = ["High-Priority Grievances:"]
+
+    for index, row in enumerate(rows, start=1):
         code = get_value(row, "grievance_code", 0, "Unknown")
         title = get_value(row, "title", 1, "Untitled")
         status = get_value(row, "status_code", 3, "Unknown")
         label = get_value(row, "priority_label", 4, "Unknown")
         rank = get_value(row, "priority_rank", 5, "Unknown")
 
-        lines.append(
-            f"- {code}: {title} | Priority: {label} ({rank}) "
-            f"| Status: {status}"
+        readable_status = status_map.get(
+            str(status), str(status)
         )
 
-    lines.append(f"\nTotal matching grievances: {len(rows)}")
+        lines.append(
+            f"{index}. Grievance ID: {code}\n"
+            f"   Issue: {title}\n"
+            f"   Priority: {label} ({rank})\n"
+            f"   Status: {readable_status}"
+        )
 
-    return "\n".join(lines)
+    lines.append(
+        f"\nTotal High-Priority Grievances: {len(rows)}"
+    )
+
+    return "\n\n".join(lines)
+
 
 
 # --------------------------------------------------
@@ -552,37 +687,77 @@ def format_grievance_details(rows):
     return "\n".join(lines)
 
 
+
 def format_search_results(rows):
     if not rows:
-        return "No matching records were found."
+        return (
+            "I'm sorry, but I couldn't find any matching records "
+            "in our database. For further assistance, please contact "
+            "our support team at 1234123414. We'll be happy to help you."
+        )
 
-    lines = ["Matching grievances:"]
+    status_map = {
+        "GST_SUBMITTED": "Submitted",
+        "GST_IN_PROGRESS": "In Progress",
+        "GST_RESOLVED": "Resolved",
+        "GST_REJECTED": "Rejected",
+        "GST_CANCELLED": "Cancelled",
+        "GST_CITIZEN_CLOSED": "Closed by Citizen",
+    }
 
-    for row in rows:
+    category_map = {
+        "CAT_TRAFFIC_ROAD_SAFETY": "Traffic and Road Safety",
+        "CAT_WATER_SUPPLY": "Water Supply",
+        "CAT_STREET_LIGHT": "Street Light",
+        "CAT_ROAD_DAMAGE": "Road Damage",
+    }
+
+    lines = ["Matching Grievances:"]
+
+    for index, row in enumerate(rows, start=1):
         code = get_value(row, "grievance_code", 0, "Unknown")
         title = get_value(row, "title", 1, "Untitled")
         category = get_value(row, "category_code", 2, "Unknown")
         status = get_value(row, "status_code", 3, "Unknown")
 
-        lines.append(
-            f"- {code}: {title} | Category: {category} | Status: {status}"
+        readable_category = category_map.get(
+            str(category), str(category)
+        )
+        readable_status = status_map.get(
+            str(status), str(status)
         )
 
-    lines.append(f"\nTotal matching grievances: {len(rows)}")
+        lines.append(
+            f"{index}. Grievance ID: {code}\n"
+            f"   Issue: {title}\n"
+            f"   Category: {readable_category}\n"
+            f"   Status: {readable_status}"
+        )
 
-    return "\n".join(lines)
+    lines.append(f"\nTotal Matching Grievances: {len(rows)}")
+
+    return "\n\n".join(lines)
+
 
 
 # --------------------------------------------------
 # KNOWN QUESTION ROUTING
 # --------------------------------------------------
 
-def build_direct_query(question):
+def build_direct_query(question, role="citizen"):
     """
-    Run deterministic queries for known questions.
-    Return None if general SQL generation is required.
+    Run predefined queries only for authorized administrative roles.
+    Citizen queries must go through the citizen ownership filter.
     """
     text = question.lower().strip()
+    role = str(role or "").strip().lower()
+
+    if role not in ALLOWED_ROLES:
+        raise PermissionError("Unsupported role.")
+
+    # Citizen requests must use the dedicated ownership-restricted path.
+    if role == "citizen":
+        return None
 
     # 1. Exact grievance code
     code_match = re.search(
@@ -598,7 +773,7 @@ def build_direct_query(question):
         code = code_match.group(0).upper()
         return "grievance_details", get_grievance_by_code(code)
 
-    # 2. Combined filter must come before the general unresolved filter
+    # 2. High-priority unresolved grievances
     if (
         "priority" in text
         and any(word in text for word in ("high", "critical"))
@@ -618,24 +793,46 @@ def build_direct_query(question):
         )
 
     # 3. Street-light search
-    if (
-        "street light" in text
-        or "street lights" in text
-        or "street_light" in text
+    if any(
+        phrase in text
+        for phrase in (
+            "street light",
+            "street lights",
+            "street_light",
+        )
     ):
         return "street_light_search", search_street_light_grievances()
 
-    # 4. All unresolved grievances
-    if (
-        "unresolved grievance" in text
-        or "unresolved grievances" in text
-        or "grievances not resolved" in text
-        or "grievances that are not resolved" in text
-        or "not yet resolved grievances" in text
+    # 4. Unresolved grievances
+    if any(
+        phrase in text
+        for phrase in (
+            "unresolved grievance",
+            "unresolved grievances",
+            "grievances not resolved",
+            "grievances that are not resolved",
+            "not yet resolved grievances",
+        )
     ):
         return "unresolved", get_unresolved_grievances()
 
-    # 5. Status counts
+    # 5. Resolved grievances
+    if (
+        "resolved" in text
+        and "priority" not in text
+        and "grievance" in text
+        and not any(
+            phrase in text
+            for phrase in (
+                "unresolved",
+                "not resolved",
+                "not yet resolved",
+            )
+        )
+    ):
+        return "resolved", get_resolved_grievances()
+
+    # 6. Status counts
     if (
         "grievance" in text
         and "status" in text
@@ -646,11 +843,11 @@ def build_direct_query(question):
     ):
         return "status_counts", get_grievance_status_counts()
 
-    # 6. Village counts
+    # 7. Village-wise counts
     if "village" in text and "grievance" in text:
         return "village_counts", get_village_grievance_counts()
 
-    # 7. Total grievances
+    # 8. Total grievances
     if (
         "grievance" in text
         and any(
@@ -665,11 +862,11 @@ def build_direct_query(question):
     ):
         return "total", get_total_grievances()
 
-    # 8. Pending grievances
+    # 9. Pending grievances
     if "pending" in text and "grievance" in text:
         return "pending", get_pending_grievances()
 
-    # 9. High-priority resolved grievances
+    # 10. High-priority resolved grievances
     if (
         "priority" in text
         and any(word in text for word in ("high", "critical"))
@@ -680,7 +877,7 @@ def build_direct_query(question):
             get_high_priority_resolved_grievances(),
         )
 
-    # 10. High-priority grievances
+    # 11. High-priority grievances
     if (
         "priority" in text
         and any(word in text for word in ("high", "critical"))
@@ -688,7 +885,6 @@ def build_direct_query(question):
         return "high_priority", get_high_priority_grievances()
 
     return None
-
 
 # --------------------------------------------------
 # SQL GENERATION
@@ -777,17 +973,20 @@ SQL:
 
 def enforce_read_only_sql(sql):
     """Reject unsafe SQL and sensitive field references."""
+
     if not isinstance(sql, str) or not sql.strip():
         raise PermissionError("Empty SQL query.")
 
     sql = sql.strip()
 
+    # Allow one optional trailing semicolon.
     if sql.endswith(";"):
         sql = sql[:-1].strip()
 
     if not sql:
         raise PermissionError("Empty SQL query.")
 
+    # Reject multiple SQL statements.
     if ";" in sql:
         raise PermissionError(
             "Multiple SQL statements are forbidden."
@@ -795,25 +994,36 @@ def enforce_read_only_sql(sql):
 
     # Reject SQL comments.
     if re.search(r"--|#|/\*|\*/", sql):
-        raise PermissionError("SQL comments are forbidden.")
+        raise PermissionError(
+            "SQL comments are forbidden."
+        )
 
+    # Reject question-mark placeholders.
     if "?" in sql:
         raise PermissionError(
             "Question-mark placeholders are forbidden."
         )
 
+    # Only SELECT statements are allowed.
     if not re.match(r"\ASELECT\b", sql, re.IGNORECASE):
-        raise PermissionError("Only SELECT queries are allowed.")
+        raise PermissionError(
+            "Only SELECT queries are allowed."
+        )
 
+    # Reject dangerous keywords and functions.
     if re.search(
         r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|"
-        r"REPLACE|GRANT|REVOKE|CALL|EXECUTE|INTO|LOAD_FILE|"
-        r"SLEEP|BENCHMARK)\b",
+        r"REPLACE|GRANT|REVOKE|CALL|EXECUTE|INTO|OUTFILE|"
+        r"DUMPFILE|LOAD_FILE|SLEEP|BENCHMARK|HANDLER|"
+        r"SET|USE|DO|XA|PREPARE|DEALLOCATE)\b",
         sql,
         re.IGNORECASE,
     ):
-        raise PermissionError("Unsafe SQL was blocked.")
+        raise PermissionError(
+            "Unsafe SQL was blocked."
+        )
 
+    # Reject sensitive identifiers.
     for identifier in FORBIDDEN_IDENTIFIERS:
         if re.search(
             rf"\b{re.escape(identifier)}\b",
@@ -834,17 +1044,52 @@ def enforce_read_only_sql(sql):
 def restrict_citizen_query(sql, mobile_number):
     """
     Restrict citizen queries to their own grievances.
-    Reject joins, unions and subqueries.
+    Allow only simple SELECT queries on the grievances table.
     """
+
     if not mobile_number:
         raise PermissionError(
             "Registered citizen account is unavailable."
         )
 
-    sql = sql.strip().rstrip(";")
+    if not isinstance(sql, str) or not sql.strip():
+        raise PermissionError("Invalid SQL query.")
 
+    sql = sql.strip()
+
+    # Allow one optional trailing semicolon only.
+    if sql.endswith(";"):
+        sql = sql[:-1].strip()
+
+    # Reject multiple statements and SQL comments.
+    if ";" in sql or re.search(r"--|#|/\*|\*/", sql):
+        raise PermissionError(
+            "Multiple statements and SQL comments are forbidden."
+        )
+
+    # Only SELECT queries are allowed.
+    if not re.match(r"\ASELECT\b", sql, re.IGNORECASE):
+        raise PermissionError("Only SELECT queries are allowed.")
+
+    # Reject query constructs that can bypass simple ownership checks.
+    if re.search(
+        r"\b(JOIN|UNION|INTERSECT|EXCEPT|EXISTS|"
+        r"WITH|PROCEDURE|INTO|FOR\s+UPDATE|LOCK\s+IN\s+SHARE\s+MODE)\b",
+        sql,
+        re.IGNORECASE,
+    ):
+        raise PermissionError(
+            "Complex citizen queries are not permitted."
+        )
+
+    # Reject nested SELECT statements.
+    if re.search(r"\bSELECT\b", sql, re.IGNORECASE)[len("SELECT"):]:
+        # This branch is intentionally not used for parsing nested SQL.
+        pass
+
+    # Require the grievances table as the only FROM target.
     match = re.match(
-        r"\ASELECT\b.+?\bFROM\s+`?grievances`?(?=\s|$)",
+        r"\ASELECT\s+.+?\s+FROM\s+`?grievances`?(?=\s|$)",
         sql,
         re.IGNORECASE | re.DOTALL,
     )
@@ -854,15 +1099,25 @@ def restrict_citizen_query(sql, mobile_number):
             "Citizens can access only their own grievances."
         )
 
-    if re.search(
-        r"\b(JOIN|UNION|INTERSECT|EXCEPT|EXISTS)\b|\bSELECT\b",
-        sql[match.end():],
+    remainder = sql[match.end():]
+
+    # Only these clauses are allowed after the table name.
+    if remainder.strip() and not re.match(
+        r"\s*(WHERE\b|ORDER\s+BY\b|GROUP\s+BY\b|HAVING\b|LIMIT\b)",
+        remainder,
         re.IGNORECASE,
     ):
         raise PermissionError(
-            "Complex citizen queries are not permitted."
+            "Additional tables are not permitted."
         )
 
+    # Reject subqueries anywhere in the query.
+    if re.search(r"\(\s*SELECT\b", sql, re.IGNORECASE):
+        raise PermissionError(
+            "Subqueries are not permitted for citizen queries."
+        )
+
+    # Prevent private contact fields from being selected.
     select_list = re.split(
         r"\bFROM\b",
         sql,
@@ -872,7 +1127,8 @@ def restrict_citizen_query(sql, mobile_number):
 
     if re.search(
         r"\b(citizen_mobile|citizen_email|citizen_name|"
-        r"mobile_number|phone_number|email|address)\b",
+        r"mobile_number|phone_number|email|address|"
+        r"reporter_name|reporter_contact)\b",
         select_list,
         re.IGNORECASE,
     ):
@@ -880,17 +1136,7 @@ def restrict_citizen_query(sql, mobile_number):
             "Private contact details cannot be displayed."
         )
 
-    remainder = sql[match.end():]
-
-    if remainder.strip() and not re.match(
-        r"\s*(WHERE|ORDER\s+BY|GROUP\s+BY|HAVING|LIMIT)\b",
-        remainder,
-        re.IGNORECASE,
-    ):
-        raise PermissionError(
-            "Additional tables are not permitted."
-        )
-
+    # Split the WHERE condition from optional trailing clauses.
     clause_match = re.search(
         r"\b(ORDER\s+BY|GROUP\s+BY|HAVING|LIMIT)\b",
         remainder,
@@ -907,6 +1153,7 @@ def restrict_citizen_query(sql, mobile_number):
         main_sql = sql
         trailing_clause = ""
 
+    # Enforce ownership outside the user-generated condition.
     where_match = re.search(
         r"\bWHERE\b",
         main_sql,
@@ -931,9 +1178,11 @@ def restrict_citizen_query(sql, mobile_number):
             + " WHERE citizen_mobile = %s"
         )
 
-    return (
+    safe_sql = (
         safe_sql + " " + trailing_clause.strip()
-    ).strip(), (mobile_number,)
+    ).strip()
+
+    return safe_sql, (mobile_number,)
 
 
 # --------------------------------------------------
@@ -941,33 +1190,64 @@ def restrict_citizen_query(sql, mobile_number):
 # --------------------------------------------------
 
 def explain_result(question, result, role):
-    """Summarize authorized database results."""
+    """Generate professional, human-friendly CivicAI responses."""
+
+    if result is None or result == [] or result == ():
+        return (
+            "I'm sorry, but I couldn't find any matching records "
+            "in our database. For further assistance, please contact "
+            "our support team at 1234123414. We'll be happy to help you."
+        )
+
     prompt = f"""
-You are a Government Citizen Service AI Assistant.
+You are CivicAI, a professional Government Citizen Service AI Assistant.
 
-Rules:
-1. Use only the supplied database results.
-2. Never invent records, statuses, dates or details.
-3. Never reveal passwords, hashes, OTPs, tokens or secrets.
-4. Never reveal personal contact details.
-5. If there are no results, say no matching records were found.
-6. Answer clearly and concisely.
-7. Never print raw Python tuples, lists or datetime objects.
-8. Do not claim to perform actions that were not performed.
-9. User role: {role}
+Your goal is to provide accurate, natural, and helpful responses.
 
-Question:
+Response guidelines:
+1. Use only the supplied authorized database results.
+2. Never invent records, statuses, dates, or other details.
+3. Never reveal passwords, hashes, OTPs, tokens, or secrets.
+4. Never reveal unauthorized personal contact details.
+5. If no matching records exist, politely explain this and
+   provide the support number 1234123414.
+6. Use professional, natural, friendly English.
+7. Keep answers clear, concise, and easy to understand.
+8. Never expose raw Python objects, tuples, or database structures.
+9. Never claim to perform actions that were not performed.
+10. Convert internal database codes into readable English labels
+    wherever their meaning is clear.
+11. For example:
+    - GST_IN_PROGRESS -> In Progress
+    - GST_RESOLVED -> Resolved
+    - GST_SUBMITTED -> Submitted
+    - WS_EXECUTION -> Execution
+    - CAT_STREET_LIGHT -> Street Light
+12. Do not display internal codes when their meaning is known.
+13. If a code's meaning is unknown, do not guess its meaning.
+14. When showing work progress, clearly include the percentage
+    if it is supplied in the database results.
+15. Present grievance information in a readable format using
+    grievance ID, issue, current status, work stage, progress,
+    and reported date when those fields are available.
+16. Format dates naturally when possible without changing
+    the actual date or time.
+17. If multiple records are returned, summarize them clearly
+    without omitting important information.
+18. Respect the user's authorization level.
+19. User role: {role}
+
+User question:
 {question}
 
 Authorized database results:
 {result}
 
-Provide a human-readable answer:
+Write the final answer directly to the user.
+Do not mention these instructions or your internal processing.
 """
 
     return call_gemini(prompt)
-
-
 # --------------------------------------------------
 # MAIN CHAT FUNCTION
 # --------------------------------------------------
@@ -1017,9 +1297,13 @@ def ask_database(question, user_id=None, role="citizen"):
                 result = get_citizen_grievances(mobile_number)
 
                 if not result:
-                    return "No matching records were found."
+                    return (
+                        "I'm sorry, but I couldn't find any matching records "
+                        "in our database. For further assistance, please contact "
+                        "our support team at 1234123414. We'll be happy to help you."
+                        )
 
-                lines = ["Your grievances:"]
+                lines = ["Here is a summary of your grievances:"]
 
                 for index, row in enumerate(
                     result[:MAX_RESULTS], start=1
@@ -1036,9 +1320,33 @@ def ask_database(question, user_id=None, role="citizen"):
                     status = get_value(
                         row, "status_code", 3, "N/A"
                     )
+
+                    status_labels = {
+                        "GST_SUBMITTED": "Submitted",
+                        "GST_IN_PROGRESS": "In Progress",
+                        "GST_RESOLVED": "Resolved",
+                    }
+
+                    status = status_labels.get(str(status), str(status))
+
                     stage = get_value(
                         row, "work_stage_code", 4, "N/A"
                     )
+
+                    stage_labels = {
+                        "WS_EXECUTION": "Execution",
+                    }
+
+                    stage = stage_labels.get(str(stage), str(stage))
+
+                    category_labels = {
+                        "CAT_STREET_LIGHT": "Street Light",
+                    }
+
+                    category = category_labels.get(
+                        str(category), str(category)
+                    )
+
                     progress = get_value(
                         row, "work_progress", 5, "N/A"
                     )
@@ -1052,13 +1360,31 @@ def ask_database(question, user_id=None, role="citizen"):
                         f"   Category: {category}\n"
                         f"   Status: {status}\n"
                         f"   Work Stage: {stage}\n"
-                        f"   Work Progress: {progress}\n"
+                        f"   Work Progress: {progress}%\n"
                         f"   Reported On: {created}"
                     )
 
                 return "\n\n".join(lines)
-            
-        
+
+
+        # BLOCK DESTRUCTIVE DATABASE REQUESTS
+        destructive_terms = (
+            "delete ",
+            "drop ",
+            "truncate ",
+            "update ",
+            "insert ",
+            "remove ",
+            "erase ",
+            "modify ",
+        )
+
+        if any(term in text for term in destructive_terms):
+            return (
+                "Access denied. I can only retrieve authorized "
+                "information and cannot modify or delete records."
+            )
+
         # ADMIN / COMMANDER: show all grievances
         all_grievance_questions = (
             "show all grievances",
@@ -1106,7 +1432,11 @@ def ask_database(question, user_id=None, role="citizen"):
             )
 
             if not result:
-                return "No grievances were found."
+                return (
+                    "I'm sorry, but I couldn't find any matching records "
+                    "in our database. For further assistance, please contact "
+                    "our support team at 1234123414. We'll be happy to help you."
+                    )
 
             lines = [
                 "Here are the grievances listed in the database:"
@@ -1132,17 +1462,42 @@ def ask_database(question, user_id=None, role="citizen"):
                     grievance, "created_at", 6, "N/A"
                 )
 
+                status_map = {
+                    "GST_SUBMITTED": "Submitted",
+                    "GST_IN_PROGRESS": "In Progress",
+                    "GST_RESOLVED": "Resolved",
+                    "GST_REJECTED": "Rejected",
+                    "GST_CANCELLED": "Cancelled",
+                    "GST_CITIZEN_CLOSED": "Closed by Citizen",
+                    }
+
+                stage_map = {
+                    "WS_UNTRIAGED": "Awaiting Initial Review",
+                    "WS_LOGGED": "Logged",
+                    "WS_VERIFICATION": "Verification",
+                    "WS_MOBILIZATION": "Mobilization",
+                    "WS_EXECUTION": "Execution",
+                    "WS_INSPECTION": "Inspection",
+                    "WS_RESOLUTION": "Resolution",
+                    "WS_CLOSED": "Closed",
+                }
+
+                readable_status = status_map.get(str(status), str(status))
+                readable_stage = stage_map.get(str(stage), str(stage))
+
                 lines.append(
-                    f"{index}. {code} - {title} - "
-                    f"{status} - {stage} - "
-                    f"Work Progress: {progress} - "
-                    f"Reported On: {created}"
+                    f"{index}. Grievance ID: {code}\n"
+                    f"   Issue: {title}\n"
+                    f"   Status: {readable_status}\n"
+                    f"   Work Stage: {readable_stage}\n"
+                    f"   Work Progress: {progress}%\n"
+                    f"   Reported On: {created}"
                 )
 
             return "\n".join(lines)
 
         # DIRECT DATABASE QUERIES
-        direct = build_direct_query(question)
+        direct = build_direct_query(question, role = role)
 
         if direct is not None:
             query_type, result = direct
@@ -1155,6 +1510,9 @@ def ask_database(question, user_id=None, role="citizen"):
 
             if query_type == "unresolved":
                 return format_unresolved_grievances(result)
+
+            if query_type == "resolved":
+                return format_search_results(result)
 
             if query_type == "high_priority_unresolved":
                 return format_high_priority_grievances(result)
@@ -1206,7 +1564,11 @@ def ask_database(question, user_id=None, role="citizen"):
         )
 
         if not result:
-            return "No matching records were found."
+            return (
+                "I'm sorry, but I couldn't find any matching records "
+                "in our database. For further assistance, please contact "
+                "our support team at 1234123414. We'll be happy to help you."
+                )
 
         if isinstance(result, list):
             result = result[:MAX_RESULTS]

@@ -11,8 +11,6 @@ FORBIDDEN_FUNCTIONS = {
     "BENCHMARK",
 }
 
-# Functions that can modify session state or variables
-# are not needed for this chatbot's read-only queries.
 FORBIDDEN_OPERATORS = {
     ":=",
 }
@@ -20,10 +18,11 @@ FORBIDDEN_OPERATORS = {
 
 def validate_sql(sql: str) -> bool:
     """
-    Conservatively validate a single, read-only MySQL SELECT query.
+    Validate a single read-only MySQL SELECT query.
 
-    This is a defense-in-depth check, not a replacement
-    for backend authorization or database permissions.
+    This is a defense-in-depth check.
+    Database permissions and backend authorization
+    are still required.
     """
 
     if not isinstance(sql, str):
@@ -42,21 +41,29 @@ def validate_sql(sql: str) -> bool:
     if any(operator in sql for operator in FORBIDDEN_OPERATORS):
         return False
 
-    # Permit one optional trailing semicolon only.
-    without_trailing = sql.rstrip(";").strip()
+    # Permit one optional trailing semicolon.
+    if sql.endswith(";"):
+        sql = sql[:-1].strip()
 
-    if not without_trailing:
-        return False
-
-    if ";" in without_trailing:
+    # Reject multiple SQL statements.
+    if not sql or ";" in sql:
         return False
 
     try:
+        # sqlglot may not understand MySQL driver's %s placeholders.
+        # # Replace placeholders only in a temporary copy used for parsing.
+
+        sql_for_validation = re.sub(
+            r"%s",
+            "NULL",
+            sql,
+        )
+
         statements = sqlglot.parse(
-            without_trailing,
+            sql_for_validation,
             read="mysql",
         )
-    except sqlglot.errors.ParseError:
+    except Exception:
         return False
 
     # Exactly one valid statement is required.
@@ -65,39 +72,47 @@ def validate_sql(sql: str) -> bool:
 
     query = statements[0]
 
-    # Only SELECT statements are permitted.
+    # Allow only SELECT statements.
     if not isinstance(query, exp.Select):
         return False
 
-    # Inspect every SELECT, including nested queries and CTEs.
-    for select in query.find_all(exp.Select):
-
-        # Reject SELECT * and table.* projections.
-        for projection in select.expressions:
-            if isinstance(projection, exp.Star):
-                return False
-
-            if isinstance(projection, exp.Column) and projection.is_star:
-                return False
-
-        # Reject dangerous functions.
-        for function in select.find_all(exp.Func):
-            function_name = function.sql_name().upper()
-
-            if function_name in FORBIDDEN_FUNCTIONS:
-                return False
-
-            if (
-                isinstance(function, exp.Anonymous)
-                and function.name.upper() in FORBIDDEN_FUNCTIONS
-            ):
-                return False
-
-    # Reject SELECT INTO and related output clauses.
+    # Reject SELECT INTO clauses.
     if any(
         isinstance(node, exp.Into)
         for node in query.walk()
     ):
         return False
+
+    # Reject locking SELECT statements.
+    if any(
+        isinstance(node, exp.Lock)
+        for node in query.walk()
+    ):
+        return False
+
+    # Reject SELECT * and table.* projections.
+    for select in query.find_all(exp.Select):
+        for projection in select.expressions:
+            if isinstance(projection, exp.Star):
+                return False
+
+            if (
+                isinstance(projection, exp.Column)
+                and projection.is_star
+            ):
+                return False
+
+    # Reject dangerous functions.
+    for function in query.find_all(exp.Func):
+        function_name = function.sql_name().upper()
+
+        if function_name in FORBIDDEN_FUNCTIONS:
+            return False
+
+        if (
+            isinstance(function, exp.Anonymous)
+            and function.name.upper() in FORBIDDEN_FUNCTIONS
+        ):
+            return False
 
     return True
