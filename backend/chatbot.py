@@ -1,6 +1,7 @@
 import re
 import os
 from google import genai
+from groq import Groq
 import time
 from schema_prompt import SCHEMA
 from db import execute_query, get_connection
@@ -23,95 +24,149 @@ FORBIDDEN_IDENTIFIERS = {
 }
 
 
-def call_gemini(prompt):
-    """Call Gemini with retries and a fallback model."""
 
-    api_key = os.getenv("GEMINI_API_KEY")
+def call_groq(prompt):
+    """Use Groq as an independent fallback provider."""
+
+    api_key = os.getenv("GROQ_API_KEY")
 
     if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is not configured.")
+        raise RuntimeError("GROQ_API_KEY is not configured.")
 
-    client = genai.Client(api_key=api_key)
+    client = Groq(api_key=api_key)
+    model = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 
-    fallback_model = os.getenv(
-        "GEMINI_FALLBACK_MODEL",
-        "gemini-3.6-flash",
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Follow the task instructions precisely. "
+                    "For SQL-generation tasks, return only SQL. "
+                    "Do not use Markdown fences or explanations."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0,
     )
 
-    models_to_try = [MODEL_NAME]
+    content = response.choices[0].message.content
 
-    if fallback_model != MODEL_NAME:
-        models_to_try.append(fallback_model)
+    if not content or not content.strip():
+        raise RuntimeError("Groq returned an empty response.")
 
+    print(f"Groq fallback succeeded using model: {model}")
+    return content.strip()
+
+
+def call_gemini(prompt):
+    """Try Gemini models first, then use Groq."""
+
+    api_key = os.getenv("GEMINI_API_KEY")
     last_error = None
 
-    for model in models_to_try:
-        for attempt in range(3):
-            try:
-                print(
-                    f"Trying Gemini model: {model} "
-                    f"(attempt {attempt + 1}/3)"
-                )
+    if api_key:
+        client = genai.Client(api_key=api_key)
 
-                response = client.models.generate_content(
-                    model=model,
-                    contents=prompt,
-                )
+        fallback_model = os.getenv(
+            "GEMINI_FALLBACK_MODEL",
+            "gemini-3.6-flash",
+        )
 
-                if not response.text:
-                    raise RuntimeError(
-                        "Gemini returned an empty response."
+        models_to_try = [MODEL_NAME]
+
+        if fallback_model != MODEL_NAME:
+            models_to_try.append(fallback_model)
+
+        for model in models_to_try:
+            for attempt in range(3):
+                try:
+                    print(
+                        f"Trying Gemini model: {model} "
+                        f"(attempt {attempt + 1}/3)"
                     )
 
-                if model != MODEL_NAME:
-                    print(f"Fallback model succeeded: {model}")
+                    response = client.models.generate_content(
+                        model=model,
+                        contents=prompt,
+                    )
 
-                return response.text.strip()
+                    if not response.text or not response.text.strip():
+                        raise RuntimeError(
+                            "Gemini returned an empty response."
+                        )
 
-            except Exception as error:
-                last_error = error
-                error_text = str(error).upper()
-                error_code = (
-                    getattr(error, "code", None)
-                    or getattr(error, "status_code", None)
-                )
+                    return response.text.strip()
 
-                temporary_error = (
-                    error_code in (429, 500, 502, 503, 504)
-                    or any(
-                        marker in error_text
-                        for marker in (
-                            "503",
-                            "UNAVAILABLE",
-                            "429",
-                            "RESOURCE_EXHAUSTED",
-                            "500 INTERNAL",
-                            "502",
-                            "504",
-                            "DEADLINE_EXCEEDED",
-                            "INTERNAL SERVER ERROR",
+                except Exception as error:
+                    last_error = error
+                    error_text = str(error).upper()
+                    error_code = (
+                        getattr(error, "code", None)
+                        or getattr(error, "status_code", None)
+                    )
+
+                    is_quota_error = (
+                        error_code == 429
+                        or any(
+                            marker in error_text
+                            for marker in (
+                                "429",
+                                "RESOURCE_EXHAUSTED",
+                                "QUOTA",
+                            )
                         )
                     )
-                )
 
-                if not temporary_error:
-                    raise
+                    is_temporary_error = (
+                        is_quota_error
+                        or error_code in (500, 502, 503, 504)
+                        or any(
+                            marker in error_text
+                            for marker in (
+                                "500",
+                                "502",
+                                "503",
+                                "504",
+                                "UNAVAILABLE",
+                                "DEADLINE_EXCEEDED",
+                                "TIMEOUT",
+                                "INTERNAL SERVER ERROR",
+                            )
+                        )
+                    )
 
-                print(
-                    f"Temporary Gemini error on {model}: {error}"
-                )
+                    print(
+                        f"Gemini error on {model}: "
+                        f"{type(error).__name__}"
+                    )
 
-                if attempt < 2:
-                    wait_seconds = 2 ** attempt
-                    print(f"Retrying in {wait_seconds} seconds...")
-                    time.sleep(wait_seconds)
-                else:
-                    print(f"Retries exhausted for model: {model}")
+                    if is_quota_error:
+                        break
 
-    raise RuntimeError(
-        "Gemini primary and fallback models are unavailable. "
-        "Please try again shortly."
-    ) from last_error
+                    if is_temporary_error and attempt < 2:
+                        time.sleep(2 ** (attempt + 1))
+                        continue
+
+                    if not is_temporary_error:
+                        break
+
+                    break
+    else:
+        print("GEMINI_API_KEY missing; switching to Groq.")
+
+    print("Gemini unavailable; switching to Groq fallback.")
+
+    try:
+        return call_groq(prompt)
+    except Exception as groq_error:
+        print(f"Groq fallback failed: {type(groq_error).__name__}")
+        raise RuntimeError(
+            "Gemini and Groq are unavailable. "
+            "Please try again later."
+        ) from groq_error
 
 
 # --------------------------------------------------
