@@ -72,7 +72,7 @@ def call_gemini(prompt):
 
         fallback_model = os.getenv(
             "GEMINI_FALLBACK_MODEL",
-            "gemini-3.6-flash",
+            "gemini-3.7-flash",
         )
 
         models_to_try = [MODEL_NAME]
@@ -312,6 +312,53 @@ def get_citizen_grievances(mobile_number):
         (mobile_number,),
         role="citizen",
     )
+
+
+def get_public_activities(role="citizen"):
+    """Return public activity/event information without private fields."""
+    if role not in ALLOWED_ROLES:
+        raise PermissionError("Unsupported role.")
+
+    query = """
+        SELECT
+            activity_code,
+            title,
+            category,
+            activity_date,
+            location,
+            description,
+            status
+        FROM activities
+        WHERE LOWER(status) <> 'cancelled'
+        ORDER BY activity_date DESC
+        LIMIT 20
+    """
+
+    return execute_query(query, role=role)
+
+
+def get_public_job_fairs(role="citizen"):
+    """Return public job fair information without private fields."""
+    if role not in ALLOWED_ROLES:
+        raise PermissionError("Unsupported role.")
+
+    query = """
+        SELECT
+            job_code,
+            title,
+            assumed_date,
+            status_code,
+            venue,
+            partners,
+            candidates,
+            placements
+        FROM job_fairs
+        ORDER BY assumed_date DESC
+        LIMIT 20
+    """
+
+    return execute_query(query, role=role)
+
 
 
 # --------------------------------------------------
@@ -1023,27 +1070,43 @@ def generate_sql(question, role):
 
     role_rules = {
         "admin": """
-            ADMIN:
-            - Query only tables and columns in the supplied schema.
-            - Never select personal contact details by default.
-            - Never access credentials, passwords, OTPs, tokens or secrets.
-            - Never use SELECT *.
-        """,
-        "commander": """
-            COMMANDER:
-            - Query only authorized operational tables and columns.
-            - Never select personal contact details by default.
-            - Never access credentials, passwords, OTPs, tokens or secrets.
-            - Never use SELECT *.
-        """,
-        "citizen": """
-            CITIZEN:
-            - Query the grievances table only.
-            - Never query users or authentication tables.
-            - Never select personal contact details.
-            - Never use SELECT *.
-            - Backend authorization must enforce record ownership.
-        """,
+    ADMIN:
+    - May query all authorized database tables and columns
+      provided in the supplied schema.
+    - May access all grievance records.
+    - May access public events, job fairs and blood donor
+      service information.
+    - Never access or return passwords, password hashes,
+      OTPs, tokens or secret keys.
+    - Never use SELECT *.
+""",
+
+"commander": """
+    COMMANDER:
+    - May query all authorized operational tables and columns
+      provided in the supplied schema.
+    - May access all grievance records.
+    - May access public events, job fairs and blood donor
+      service information.
+    - Never access or return passwords, password hashes,
+      OTPs, tokens or secret keys.
+    - Never use SELECT *.
+""",
+        
+"citizen": """
+    CITIZEN:
+    - Public information tables such as public events and job fairs
+      may be queried when relevant to the question and included in
+      the supplied schema.
+    - Grievance queries must use the grievances table only.
+    - Never query users or authentication tables.
+    - Never select personal contact details, passwords, OTPs,
+      tokens or secrets.
+    - Never use SELECT *.
+    - Backend authorization must enforce grievance ownership.
+    - Do not query another citizen's grievances.
+""",
+
     }[role]
 
     prompt = f"""
@@ -1391,6 +1454,33 @@ def ask_database(question, user_id=None, role="citizen"):
 
         text = question.lower()
 
+        
+        # BLOOD DONOR: guide users without exposing private details
+        blood_donor_terms = (
+            "blood donor",
+            "blood donors",
+            "blood donation",
+            "find a donor",
+            "find donors",
+            "donors in my area",
+        )
+
+        if any(term in text for term in blood_donor_terms):
+            if is_sensitive_request(question):
+                return (
+                    "Access denied. I cannot provide sensitive "
+                    "or private information."
+                )
+
+            return (
+                "You can find blood donor information in the "
+                "Blood Donor section of the Citizen Services portal. "
+                "Please open that section to continue. For privacy, "
+                "I cannot display private donor phone numbers "
+                "or addresses here."
+            )
+
+
         if is_sensitive_request(question):
             return (
                 "Access denied. I cannot provide sensitive or "
@@ -1415,6 +1505,36 @@ def ask_database(question, user_id=None, role="citizen"):
                     "Access denied. You can access only your "
                     "own authorized records."
                 )
+
+            
+            # CITIZEN: allow public events and job fairs
+            # before applying the grievance-only ownership path.
+            if role == "citizen":
+                event_terms = (
+                    "event", "events", "activity",
+                    "activities", "program", "programs",
+                )
+                job_fair_terms = (
+                    "job fair", "job fairs",
+                    "jobfair", "jobfairs",
+                )
+
+                if any(term in text for term in job_fair_terms):
+                    result = get_public_job_fairs(role)
+
+                    if not result:
+                        return "No job fair records were found."
+
+                    return explain_result(question, result, role)
+
+                if any(term in text for term in event_terms):
+                    result = get_public_activities(role)
+
+                    if not result:
+                        return "No public event records were found."
+
+                    return explain_result(question, result, role)
+
 
             if "grievance" in text:
                 mobile_number = get_citizen_mobile(user_id)

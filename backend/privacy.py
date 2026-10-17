@@ -32,7 +32,7 @@ def sanitize_result(result, columns=None, role="citizen"):
     role = str(role).lower().strip()
 
     # Only admin can view permitted contact details.
-    show_private_details = role == "admin"
+    show_private_details = False
 
     protected_indexes = []
 

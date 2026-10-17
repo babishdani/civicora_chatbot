@@ -46,6 +46,52 @@ voice_note_key
 voice_note_name
 
 
+
+Table: activities
+
+Columns:
+id
+activity_code
+title
+category
+activity_date
+location
+description
+status
+created_by
+created_at
+updated_at
+
+
+Table: job_fairs
+
+Columns:
+id
+job_code
+title
+assumed_date
+status_code
+venue
+partners
+candidates
+placements
+created_by
+created_at
+updated_at
+
+
+Table: job_fair_statuses
+
+Columns:
+id
+code
+label
+sort_order
+is_active
+created_at
+updated_at
+
+
 Table: users
 
 Columns:
