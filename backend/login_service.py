@@ -10,13 +10,15 @@ from config import (
 )
 
 
-ALLOWED_ROLES = {"citizen", "commander", "admin"}
+# Citizen role mattum allowed
+ALLOWED_ROLES = {"citizen"}
 
 
 def login_user(mobile_number, password=None, role=None):
     """
     Development-only passwordless login.
     Use only with dummy data in local testing.
+    Production-la secure authentication use pannanum.
     """
 
     # Validate mobile number
@@ -37,13 +39,14 @@ def login_user(mobile_number, password=None, role=None):
 
     role = role.strip().lower()
 
+    # Citizen role mattum accept pannum
     if role not in ALLOWED_ROLES or not mobile_number:
         return {
             "success": False,
             "message": "Invalid credentials",
         }
 
-    # Parameterized SQL query
+    # Database-la active citizen account check pannum
     query = """
         SELECT id, role
         FROM users
@@ -62,10 +65,9 @@ def login_user(mobile_number, password=None, role=None):
 
     except Exception as error:
         print("LOGIN DATABASE ERROR:", type(error).__name__)
-        print("LOGIN DATABASE DETAILS:", repr(error))
         raise
 
-    # Validate database result
+    # Account illana login reject pannum
     if not result:
         return {
             "success": False,
@@ -75,7 +77,8 @@ def login_user(mobile_number, password=None, role=None):
     user_id = result[0][0]
     user_role = str(result[0][1]).strip().lower()
 
-    if user_role not in ALLOWED_ROLES or user_role != role:
+    # Database role-um citizen-ah irukkanum
+    if user_role != "citizen":
         return {
             "success": False,
             "message": "Invalid credentials",

@@ -69,3 +69,38 @@ def execute_query(query, params=None, role="citizen"):
 
         if conn is not None and conn.is_connected():
             conn.close()
+
+def get_citizen_mobile_for_auth(user_id):
+    """Internal lookup for an authenticated citizen."""
+    conn = None
+    cursor = None
+
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT mobile_number
+            FROM users
+            WHERE id = %s
+              AND role = 'citizen'
+              AND is_active = 1
+            LIMIT 1
+            """,
+            (user_id,),
+        )
+
+        row = cursor.fetchone()
+
+        if not row or not row[0]:
+            return None
+
+        return str(row[0]).strip()
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+
+        if conn is not None and conn.is_connected():
+            conn.close()
