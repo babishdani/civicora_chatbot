@@ -1,4 +1,6 @@
+
 import { useState, useRef, useEffect } from "react";
+
 import {
   Bot,
   X,
@@ -10,6 +12,7 @@ import {
   ChevronDown,
   RefreshCw,
 } from "lucide-react";
+
 import "./App.css";
 
 const API_URL =
@@ -37,7 +40,12 @@ const services = [
 ];
 
 export default function App() {
-  const [isOpen, setIsOpen] = useState(false);
+  // Detect whether the chatbot is embedded in another website.
+  const isEmbed =
+    new URLSearchParams(window.location.search).get("embed") === "1";
+
+  // In embed mode, open the chat interface immediately.
+  const [isOpen, setIsOpen] = useState(isEmbed);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -84,7 +92,11 @@ export default function App() {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 45000);
+
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        45000
+      );
 
       let response;
 
@@ -184,7 +196,8 @@ export default function App() {
 
   return (
     <>
-      {!isOpen && (
+      {/* Hide the internal launcher in embedded mode. */}
+      {!isEmbed && !isOpen && (
         <button
           type="button"
           className="chat-launcher"
@@ -198,8 +211,26 @@ export default function App() {
 
       {isOpen && (
         <section
-          className="chat-widget"
+          className={`chat-widget ${
+            isEmbed ? "chat-widget-embed" : ""
+          }`}
           aria-label="Civicora citizen assistant"
+          style={
+            isEmbed
+              ? {
+                  position: "relative",
+                  inset: "auto",
+                  width: "100%",
+                  height: "100%",
+                  maxHeight: "100%",
+                  minHeight: 0,
+                  borderRadius: 0,
+                  boxShadow: "none",
+                  display: "flex",
+                  flexDirection: "column",
+                }
+              : undefined
+          }
         >
           <header className="chat-header">
             <div className="chat-brand-icon">
@@ -214,17 +245,32 @@ export default function App() {
               </span>
             </div>
 
-            <button
-              type="button"
-              className="chat-header-button"
-              onClick={() => setIsOpen(false)}
-              aria-label="Close chatbot"
-            >
-              <X size={22} />
-            </button>
+            {/* The parent website's orange icon controls closing. */}
+            {!isEmbed && (
+              <button
+                type="button"
+                className="chat-header-button"
+                onClick={() => setIsOpen(false)}
+                aria-label="Close chatbot"
+              >
+                <X size={22} />
+              </button>
+            )}
           </header>
 
-          <div className="chat-body" ref={chatBodyRef}>
+          <div
+            className="chat-body"
+            ref={chatBodyRef}
+            style={
+              isEmbed
+                ? {
+                    flex: "1 1 0",
+                    minHeight: 0,
+                    overflowY: "auto",
+                  }
+                : undefined
+            }
+          >
             {messages.length === 0 && (
               <div className="welcome-section">
                 <div className="welcome-avatar">
