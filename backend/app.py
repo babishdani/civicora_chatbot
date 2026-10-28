@@ -1,9 +1,12 @@
 from datetime import datetime, date
+from collections import defaultdict, deque
+from threading import Lock
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import jwt
+import traceback
 
 from login_service import login_user
 from config import SECRET_KEY, ALGORITHM
@@ -15,11 +18,109 @@ from chatbot import (
     get_public_activities,
     explain_result,
     generate_chat_response,
+    detect_civicora_service,
+    build_service_response,
 )
+from scope_guard import classify_question, OUT_OF_SCOPE_REPLY
+
 
 app = FastAPI(title="Citizen Chatbot API")
 
+# --------------------------------------------------
+# Conversation history
+# --------------------------------------------------
+
+conversation_histories = defaultdict(
+    lambda: deque(maxlen=10)
+)
+
+conversation_histories_lock = Lock()
+
 ALLOWED_ROLES = {"citizen"}
+
+# Out-of-scope attempts per user/session
+OUT_OF_SCOPE_LIMIT = 3
+out_of_scope_attempts = {}
+
+SUPPORT_REPLY = (
+    "I'm sorry, I couldn't find support for that request "
+    "within Civicora's services. Please contact our support "
+    "team at +91 8870556215 for further assistance."
+)
+
+
+def get_conversation_context(conversation_key):
+    """Retrieve recent messages for this conversation only."""
+
+    with conversation_histories_lock:
+        history = list(
+            conversation_histories.get(conversation_key, ())
+        )
+
+    if not history:
+        return ""
+
+    lines = [
+        "Recent conversation history (for follow-up context only):"
+    ]
+
+    for item in history:
+        role = (
+            "Citizen"
+            if item["role"] == "user"
+            else "Civicora"
+        )
+        lines.append(f"{role}: {item['text']}")
+
+    return "\n".join(lines)
+
+
+def add_history_to_context(context, conversation_key):
+    """Attach recent conversation context to the LLM prompt."""
+
+    history_context = get_conversation_context(
+        conversation_key
+    )
+
+    if not history_context:
+        return context
+
+    return f"""{context}
+
+{history_context}
+
+CONVERSATION RULES:
+- Use earlier messages to understand follow-up references.
+- Use verified database records for current factual answers.
+- Previous assistant messages are conversation context, not
+  independently verified database records.
+- Never reveal another user's information.
+- Follow all existing authentication and privacy restrictions.
+- Do not invent missing database information.
+"""
+
+
+def get_chat_session_key(
+    authorization,
+    request,
+    conversation_id,
+):
+    """
+    Isolate conversation history by authenticated user
+    and conversation ID.
+    """
+
+    if authorization:
+        try:
+            user = get_current_user(authorization)
+            return f"user:{user['user_id']}"
+
+        except HTTPException:
+            # Private-data routes still validate authentication.
+            pass
+
+    # Do not share anonymous history using IP address alone.
+    return f"anonymous:{conversation_id}"
 
 
 # --------------------------------------------------
@@ -51,6 +152,7 @@ def format_date(value):
 
 def row_value(row, key, index):
     """Read values from dictionary, tuple, or list rows."""
+
     if isinstance(row, dict):
         value = row.get(key, "N/A")
         return value if value is not None else "N/A"
@@ -64,6 +166,7 @@ def row_value(row, key, index):
 
 def format_public_records(records, kind):
     """Format public database records."""
+
     if not records:
         if kind == "job fairs":
             return "No job fairs found in the database."
@@ -128,6 +231,7 @@ class LoginRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     question: str = Field(min_length=1, max_length=1000)
+    conversation_id: str = Field(min_length=1, max_length=100)
 
 
 # --------------------------------------------------
@@ -315,135 +419,179 @@ def get_current_user(authorization: str | None):
 
 
 # --------------------------------------------------
-# Chat API
+# Chat implementation
 # --------------------------------------------------
 
-
-@app.post("/chat")
-def chat(
+def _chat_impl(
     data: ChatRequest,
-    authorization: str | None = Header(
-        default=None,
-        alias="Authorization",
-    ),
+    request: Request,
+    authorization: str | None = None,
 ):
     question = data.question.strip()
+    conversation_id = data.conversation_id.strip()
 
-    if not question:
+    if not conversation_id:
         raise HTTPException(
             status_code=400,
-            detail="Please enter a question.",
+            detail="Invalid conversation ID.",
         )
 
-    q = question.lower()
-
-    # --------------------------------------------------
-    # 1. Grievance / Petition / Complaint queries
-    # --------------------------------------------------
-
-    grievance_keywords = (
-        "grievance", "grievances",
-        "complaint", "complaints",
-        "petition", "petitions",
-        "case status", "my case", "my cases",
-        "application status", "my application",
-        "my applications", "my issue", "my issues",
-        "my problem", "my problems",
-        "my request", "my requests",
-        "my report", "my reports",
-        "grievance status", "complaint status",
-        "petition status",
-        "track my complaint", "track my grievance",
-        "track my petition", "track my application",
-        "check my complaint", "check my grievance",
-        "check my petition",
-        "status of my complaint", "status of my grievance",
-        "status of my petition",
-        "any update on my complaint",
-        "any update on my petition",
-        "action taken on my complaint",
-        "action taken on my petition",
-        "manu", "manukkal", "pugaar", "pugar",
-        "en manu", "en pugaar", "en complaint",
-        "en petition", "en grievance", "en case",
-        "en application", "ennoda manu",
-        "ennoda complaint", "ennoda petition",
-        "ennoda grievance", "ennoda case",
-        "ennoda application",
-        "complaint status enna", "petition status enna",
-        "manu status", "manu enna aachu",
-        "complaint enna aachu", "petition enna aachu",
-        "status enna",
+    session_key = get_chat_session_key(
+        authorization,
+        request,
+        conversation_id,
     )
+    conversation_key = f"{session_key}:{conversation_id}"
 
-    if any(keyword in q for keyword in grievance_keywords):
-        login_url = "https://www.ottapidaram.com/citizen"
+    if not question:
+        return {
+            "success": False,
+            "answer": "Please enter a question.",
+            "public": True,
+        }
 
-        # Guest users cannot access grievance details.
-        if not authorization:
-            context = f"""
-            The user is not logged in.
-            Grievance details require authentication.
-            Citizen login URL: {login_url}
-            Support contact: +91 8870556215.
+    q = question.lower()
+    login_url = "https://www.ottapidaram.com/citizen"
 
-            Explain politely in the same language as the user's question
-            that they must log in to check their complaints.
-            Include the login URL.
-            Do not claim to have checked their complaint records.
-            """
+    try:
+        # 1. Safety check
+        self_harm_phrases = (
+            "how can i die",
+            "how i can die",
+            "how to die",
+            "ways to die",
+            "want to die",
+            "i want to die",
+            "kill myself",
+            "end my life",
+            "suicide",
+            "self harm",
+            "self-harm",
+            "sethupoganum",
+            "saagidanum",
+            "en uyira mudichukanum",
+        )
 
-            try:
-                answer = generate_chat_response(question, context)
-
-            except Exception as error:
-                print("GUEST GRIEVANCE AI ERROR:", type(error).__name__)
-
-                answer = (
-                    "Civicora is temporarily unable to respond. "
-                    "Please try again in a few moments. "
-                    f"You can also log in here: {login_url}"
-                )
-
+        if any(phrase in q for phrase in self_harm_phrases):
             return {
                 "success": True,
-                "answer": answer,
+                "answer": (
+                    "I'm sorry you're feeling this way. "
+                    "Please reach out to someone you trust or "
+                    "a qualified support professional for help."
+                ),
                 "public": True,
-                "login_required": True,
-                "login_url": login_url,
             }
 
-        # Validate token and current account.
-        current_user = get_current_user(authorization)
+        # Citizen personal information requires login
+        citizen_keywords = (
+            "my profile",
+            "my account",
+            "my details",
+            "citizen",
+            "my personal details",
+        )
 
-        if current_user["role"] != "citizen":
-            raise HTTPException(
-                status_code=403,
-                detail="Grievance access is available to citizens only.",
-            )
+        if any(keyword in q for keyword in citizen_keywords):
+            if not authorization:
+                return {
+                    "success": True,
+                    "answer": (
+                        "Please log in to your Citizen Portal to access "
+                        "your personal information.\n"
+                        f"Login here: {login_url}"
+                    ),
+                    "public": True,
+                    "login_required": True,
+                    "login_url": login_url,
+                }
 
-        try:
+        # 2. Grievance requests: preserve authentication
+        grievance_keywords = (
+            "grievance", "grievances",
+            "complaint", "complaints",
+            "petition", "petitions",
+            "case status", "my case", "my cases",
+            "application status", "my application",
+            "my applications", "my issue", "my issues",
+            "my problem", "my problems",
+            "my request", "my requests",
+            "my report", "my reports",
+            "grievance status", "complaint status",
+            "petition status",
+            "track my complaint", "track my grievance",
+            "track my petition", "track my application",
+            "check my complaint", "check my grievance",
+            "check my petition",
+            "status of my complaint", "status of my grievance",
+            "status of my petition",
+            "any update on my complaint",
+            "any update on my petition",
+            "action taken on my complaint",
+            "action taken on my petition",
+            "manu", "manukkal", "pugaar", "pugar",
+            "en manu", "en pugaar", "en complaint",
+            "en petition", "en grievance", "en case",
+            "en application", "ennoda manu",
+            "ennoda complaint", "ennoda petition",
+            "ennoda grievance", "ennoda case",
+            "ennoda application",
+            "complaint status enna", "petition status enna",
+            "manu status", "manu enna aachu",
+            "complaint enna aachu", "petition enna aachu",
+            "status enna",
+        )
+
+        if any(keyword in q for keyword in grievance_keywords):
+
+            if not authorization:
+                context = f"""
+                You are Civicora, an Ottapidaram citizen-services assistant.
+
+                The user needs to log in to access grievance details.
+
+                Citizen portal:
+                {login_url}
+
+                Explain this politely in the user's language.
+                Do not claim that grievance records were checked.
+                Do not invent contact details.
+                """
+
+                answer = generate_chat_response(
+                    question,
+                    add_history_to_context(
+                        context,
+                        conversation_key,
+                    ),
+                )
+
+                return {
+                    "success": True,
+                    "answer": answer,
+                    "public": True,
+                    "login_required": True,
+                    "login_url": login_url,
+                }
+
+            current_user = get_current_user(authorization)
+
+            if current_user["role"] != "citizen":
+                raise HTTPException(
+                    status_code=403,
+                    detail="Grievance access is available to citizens only.",
+                )
+
             mobile_number = get_citizen_mobile_for_auth(
                 current_user["user_id"]
             )
-        except Exception as error:
-            print(
-                "CITIZEN MOBILE LOOKUP ERROR:",
-                type(error).__name__,
-            )
-            raise HTTPException(
-                status_code=503,
-                detail="Unable to verify your citizen account right now.",
-            ) from error
 
-        if not mobile_number:
-            raise HTTPException(
-                status_code=401,
-                detail="Citizen account not found. Please log in again.",
-            )
+            if not mobile_number:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Citizen account not found. Please log in again.",
+                )
 
-        # Fetch only this citizen's grievance records.
-        try:
             grievance_rows = execute_query(
                 """
                 SELECT
@@ -463,74 +611,250 @@ def chat(
                 (mobile_number,),
                 role="citizen",
             )
-        except Exception as error:
-            print(
-                "GRIEVANCE DATABASE ERROR:",
-                type(error).__name__,
-            )
-            raise HTTPException(
-                status_code=503,
-                detail="Unable to retrieve grievance details right now.",
-            ) from error
 
-        if not grievance_rows:
-            answer = (
-                "I couldn't find any grievance records linked to "
-                "your registered mobile number. For assistance, "
-                "contact +91 8870556215."
-            )
-        else:
-            answer = explain_result(
+            context = f"""
+            You are Civicora, an Ottapidaram citizen-services assistant.
+
+            Use only the authenticated citizen's records below.
+            Explain grievance status clearly and naturally.
+            Never invent status, dates, or progress.
+            If no records are returned, say that no linked records
+            were found.
+
+            Verified grievance records:
+            {grievance_rows}
+            """
+
+            answer = generate_chat_response(
                 question,
-                grievance_rows,
-                "citizen",
+                add_history_to_context(
+                    context,
+                    conversation_key,
+                ),
             )
 
-        return {
-            "success": True,
-            "answer": answer,
-            "public": False,
-            "login_required": False,
-        }
+            return {
+                "success": True,
+                "answer": answer,
+                "public": False,
+                "login_required": False,
+            }
 
-    # --------------------------------------------------
-    # 2. Public query keywords
-    # --------------------------------------------------
+        # 3. Events and public programs
+        event_keywords = (
+            "event",
+            "events",
+            "upcoming event",
+            "upcoming events",
+            "program",
+            "programs",
+        )
 
-    blood_donor_terms = (
-        "blood donor",
-        "blood donors",
-        "blood donation",
-        "find a donor",
-        "find donors",
-        "available donor",
-        "available donors",
-    )
+        if any(keyword in q for keyword in event_keywords):
+            out_of_scope_attempts.pop(session_key, None)
 
-    job_fair_terms = (
-        "job fair",
-        "job fairs",
-        "jobfair",
-        "jobfairs",
-    )
+            updates_url = (
+                "https://ottapidaram-website.vercel.app/updates"
+            )
 
-    activity_terms = (
-        "activity",
-        "activities",
-        "public event",
-        "public events",
-        "upcoming event",
-        "upcoming events",
-        "program",
-        "programs",
-    )
+            return {
+                "success": True,
+                "answer": (
+                    "You can check the latest events and programs "
+                    "through the Ottapidaram Citizen Services website:\n"
+                    f"{updates_url}"
+                ),
+                "public": True,
+                "redirect_url": updates_url,
+            }
 
-    try:
-        # --------------------------------------------------
-        # 3. Blood donor questions
-        # --------------------------------------------------
+        # 4. Constituency updates and development information
+        updates_keywords = (
+            "constituency event",
+            "constituency events",
+            "constituency update",
+            "constituency updates",
+            "development work",
+            "development works",
+            "events", "event", "constituency", "updates", "update",
+            "public event",
+            "public events",
+            "ward-level progress",
+            "ward level progress",
+            "ward-level development",
+            "ward level development",
+            "ward progress",
+            "ward development",
+            "area development",
+            "நிகழ்ச்சிகள்",
+            "நிகழ்ச்சி",
+            "தொகுதி செய்திகள்",
+            "வளர்ச்சிப் பணிகள்",
+            "வளர்ச்சி பணிகள்",
+            "பொது நிகழ்ச்சிகள்",
+            "வார்டு வளர்ச்சி",
+            "சமீபத்திய நிகழ்வுகள்",
+            "nigazhchigal",
+            "thoguthi seithigal",
+            "valarchi panigal",
+            "ward valarchi",
+        )
 
-        if any(term in q for term in blood_donor_terms):
+        if any(keyword in q for keyword in updates_keywords):
+            out_of_scope_attempts.pop(session_key, None)
+
+            updates_url = (
+                "https://ottapidaram-website.vercel.app/updates"
+            )
+
+            return {
+                "success": True,
+                "answer": (
+                    "For constituency events, development work, public "
+                    "events, and ward-level progress, please visit the "
+                    "Civicora Updates page:\n"
+                    f"{updates_url}"
+                ),
+                "public": True,
+                "redirect_url": updates_url,
+            }
+
+        # 5. Livelihood, SHG, employment and placements
+        import re
+
+        livelihood_keywords = (
+            "livelihood",
+            "employment",
+            "placement",
+            "placements",
+            "self help group",
+            "self-help group",
+            "selfhelp group",
+            "shg support",
+            "livelihood support",
+            "livelihood scheme",
+            "livelihood schemes",
+            "shg",
+            "shgs",
+            "women self help group",
+            "women's self help group",
+            "women empowerment",
+            "employment support",
+            "job placement",
+            "job placements",
+            "employment opportunities",
+            "income generation",
+            "small business support",
+            "business support",
+            "skill development",
+            "vocational training",
+            "வாழ்வாதாரம்",
+            "சுய உதவிக் குழு",
+            "சுய உதவி குழு",
+            "மகளிர் சுய உதவிக் குழு",
+            "வேலைவாய்ப்பு",
+            "வேலை வாய்ப்பு",
+            "தொழில் பயிற்சி",
+            "தொழில் தொடங்க உதவி",
+            "பெண்கள் மேம்பாடு",
+            "vaazhvathaaram",
+            "suy uthavi kuzhu",
+            "magalir suy uthavi kuzhu",
+            "velaivaippu",
+            "thozhil payirchi",
+        )
+
+        is_livelihood_question = (
+            any(keyword in q for keyword in livelihood_keywords)
+            or bool(re.search(r"\bshgs?\b", q))
+        )
+
+        if is_livelihood_question:
+            out_of_scope_attempts.pop(session_key, None)
+
+            livelihood_url = (
+                "https://ottapidaram-website.vercel.app/livelihood"
+            )
+
+            return {
+                "success": True,
+                "answer": (
+                    "For livelihood support, Self Help Groups (SHGs), "
+                    "employment, and placements, please visit the "
+                    "Civicora Livelihood page:\n"
+                    f"{livelihood_url}"
+                ),
+                "public": True,
+                "redirect_url": livelihood_url,
+            }
+
+        # 6. Route other supported Civicora services
+        service = detect_civicora_service(question)
+
+        print("SERVICE ROUTING DEBUG")
+        print("Question:", question)
+        print("Detected service:", service)
+
+        if service:
+            out_of_scope_attempts.pop(session_key, None)
+
+            answer = build_service_response(service, question)
+
+            return {
+                "success": True,
+                "answer": answer,
+                "public": True,
+            }
+
+        # Blood-related questions: route directly to donor information
+        blood_keywords = (
+            "blood",
+            "donor",
+            "donors",
+            "blood group",
+            "blood type",
+            "blood availability",
+            "need blood",
+            "donate blood",
+            "blood donation",
+            "blood bank",
+            "o positive",
+            "o negative",
+            "a positive",
+            "a negative",
+            "b positive",
+            "b negative",
+            "ab positive",
+            "ab negative",
+            "o+",
+            "o-",
+            "a+",
+            "a-",
+            "b+",
+            "b-",
+            "ab+",
+            "ab-",
+            "ரத்தம்",
+            "இரத்தம்",
+            "ரத்த தானம்",
+            "இரத்த தானம்",
+            "ரத்த கொடையாளர்",
+            "இரத்த கொடையாளர்",
+            "ரத்தம் தேவை",
+            "இரத்தம் தேவை",
+            "ரத்த கொடையாளர்கள்",
+            "ரத்தம் கொடுக்க",
+            "ratham",
+            "iratham",
+            "ratha thaanam",
+            "ratha donor",
+            "ratham venum",
+            "ratham thevai",
+        )
+
+        if any(keyword in q for keyword in blood_keywords):
+            out_of_scope_attempts.pop(session_key, None)
+
             answer = ask_database(
                 question=question,
                 role="citizen",
@@ -542,22 +866,70 @@ def chat(
                 "public": True,
             }
 
-        # --------------------------------------------------
-        # 4. Job fair questions
-        # --------------------------------------------------
+        # Direct routing for Job Fairs - English, Tamil and Tanglish
+        job_fair_keywords = (
+            "job",
+            "jobs",
+            "job fair",
+            "job fairs",
+            "job mela",
+            "employment fair",
+            "employment fairs",
+            "upcoming job",
+            "job opportunities",
+            "job fair details",
+            "job fair date",
+            "job fair venue",
+            "வேலைவாய்ப்பு முகாம்",
+            "வேலை வாய்ப்பு முகாம்",
+            "வேலைவாய்ப்பு கண்காட்சி",
+            "வேலை தேவை",
+            "வேலை கிடைக்குமா",
+            "வேலைவாய்ப்பு விவரங்கள்",
+            "வேலை வாய்ப்புகள்",
+            "வேலைவாய்ப்பு முகாம் எப்போது",
+            "வேலைக்கு ஆட்கள் தேர்வு",
+            "velaivaippu mugam",
+            "velai vaaippu mugam",
+            "velai thevai",
+            "velai kidaikkuma",
+            "velai vaaippugal",
+            "job fair eppo",
+            "job fair irukka",
+            "job mela irukka",
+            "job details",
+        )
 
-        if any(term in q for term in job_fair_terms):
+        if any(keyword in q for keyword in job_fair_keywords):
+            out_of_scope_attempts.pop(session_key, None)
+
             result = get_public_job_fairs("citizen")
 
-            context = (
-                str(result)
-                if result
-                else "No job fair records were found."
-            )
+            context = f"""
+            You are Civicora, an Ottapidaram citizen-services assistant.
+
+            The user is asking about job fairs.
+
+            Answer in the same language as the user's question.
+            Use only facts from the verified records below.
+            Never invent dates, venues, employers, registration links,
+            eligibility, or procedures.
+            If no job fair records are available, say so clearly.
+            Never use Markdown tables.
+            Display each job fair as a separate numbered item.
+            Put available details on separate lines.
+            Do not invent missing values.
+
+            Verified job fair records:
+            {result}
+            """
 
             answer = generate_chat_response(
                 question,
-                context,
+                add_history_to_context(
+                    context,
+                    conversation_key,
+                ),
             )
 
             return {
@@ -566,22 +938,120 @@ def chat(
                 "public": True,
             }
 
-        # --------------------------------------------------
-        # 5. Public activities and events
-        # --------------------------------------------------
+        # 7. Classify the remaining question
+        intent = classify_question(question)
+        print("CHAT INTENT:", intent)
 
-        if any(term in q for term in activity_terms):
+        if intent != "out_of_scope":
+            out_of_scope_attempts.pop(session_key, None)
+
+        if intent == "out_of_scope":
+            context = """
+            You are Civicora, the citizen-services assistant
+            for Ottapidaram.
+
+            RESPONSE RULES:
+            1. Reply naturally and concisely in the user's language.
+            2. For greetings like hi or hello, greet the user.
+            3. For acknowledgements like ok, okay, thanks, seri,
+               sari, சரி, நன்றி, respond naturally and politely.
+            4. If the user says only "ok", do not show an error
+               or support escalation message.
+            5. For unrelated questions, politely explain that
+               you help with Ottapidaram citizen services.
+            6. Never invent citizen records, job fair details,
+               dates, contact details, or service information.
+            7. Do not claim that a database was checked unless
+               a database query was actually performed.
+            8. Keep the response short and helpful.
+            """
+
+            answer = generate_chat_response(
+                question,
+                add_history_to_context(
+                    context,
+                    conversation_key,
+                ),
+            )
+
+            return {
+                "success": True,
+                "answer": answer,
+                "public": True,
+                "support_escalated": False,
+            }
+
+        # 8. Public blood donor information
+        if intent == "blood_donors":
+            answer = ask_database(
+                question=question,
+                role="citizen",
+            )
+
+            return {
+                "success": True,
+                "answer": answer,
+                "public": True,
+            }
+
+        # 9. Public job fairs
+        if intent == "job_fairs":
+            result = get_public_job_fairs("citizen")
+
+            context = f"""
+            You are Civicora, an Ottapidaram citizen-services assistant.
+
+            The user is asking about job fairs.
+
+            Use only facts in the verified records below.
+            Never invent dates, venues, registration links,
+            employers, eligibility, or procedures.
+            Never use Markdown tables.
+            Display each job fair as a separate numbered item.
+            Put available fields on separate lines.
+            Do not invent missing values.
+
+            Verified job fair records:
+            {result}
+            """
+
+            answer = generate_chat_response(
+                question,
+                add_history_to_context(
+                    context,
+                    conversation_key,
+                ),
+            )
+
+            return {
+                "success": True,
+                "answer": answer,
+                "public": True,
+            }
+
+        # 10. Public activities and events
+        if intent == "activities":
             result = get_public_activities("citizen")
 
-            context = (
-                str(result)
-                if result
-                else "No public activity records were found."
-            )
+            context = f"""
+            You are Civicora, an Ottapidaram citizen-services assistant.
+
+            The user is asking about public activities and events.
+
+            Use only facts in the verified records below.
+            Do not invent dates, venues, links, or procedures.
+            Explain participation steps only when verified.
+
+            Verified public activity records:
+            {result}
+            """
 
             answer = generate_chat_response(
                 question,
-                context,
+                add_history_to_context(
+                    context,
+                    conversation_key,
+                ),
             )
 
             return {
@@ -590,32 +1060,41 @@ def chat(
                 "public": True,
             }
 
-        # --------------------------------------------------
-        # 6. Greetings, thanks, and general questions
-        # --------------------------------------------------
-
+        # 11. Remaining conversational or unsupported questions
         context = """
-        You are Civicora, a citizen services assistant.
+        You are Civicora, the citizen-services assistant
+        for Ottapidaram.
 
-        You can help with:
-        - Public blood donor information
-        - Job fairs
-        - Public activities and events
-        - General questions about available citizen services
+        You can assist with supported citizen services,
+        blood donor information, job fairs, public activities,
+        grievance guidance, constituency updates, development work,
+        livelihood support, SHGs, employment, and placements.
 
-        Grievance details require citizen login.
-        For support, contact +91 8870556215.
+        Reply naturally and concisely in the user's language.
+        Do not invent facts, contact details, phone numbers,
+        database records, or service procedures.
 
-        Reply in the same language as the user's question.
-        Understand Tamil, Tanglish, and English.
-        Be friendly, concise, and helpful.
-        Do not invent public records or claim that an action
-        was completed when it was not.
+        For constituency events, development work, public events,
+        or ward-level progress, direct users to:
+        https://ottapidaram-website.vercel.app/updates
+
+        For livelihood, SHG, self-help groups, employment,
+        or placements, direct users to:
+        https://ottapidaram-website.vercel.app/livelihood
+
+        If the request is unrelated to citizen services,
+        politely explain Civicora's purpose and redirect
+        the user to supported citizen services.
+
+        If the request is unclear, ask one short clarification.
         """
 
         answer = generate_chat_response(
             question,
-            context,
+            add_history_to_context(
+                context,
+                conversation_key,
+            ),
         )
 
         return {
@@ -629,6 +1108,8 @@ def chat(
 
     except Exception as error:
         print("CHAT ERROR TYPE:", type(error).__name__)
+        print("CHAT ERROR DETAILS:", repr(error))
+        traceback.print_exc()
 
         raise HTTPException(
             status_code=503,
@@ -637,3 +1118,65 @@ def chat(
                 "Please try again in a few moments."
             ),
         ) from error
+
+
+# --------------------------------------------------
+# Chat endpoint: save successful conversation turns
+# --------------------------------------------------
+
+@app.post("/chat")
+def chat(
+    data: ChatRequest,
+    request: Request,
+    authorization: str | None = Header(default=None),
+):
+    """
+    Process the chat and save recent successful turns.
+    """
+
+    response = _chat_impl(
+        data,
+        request,
+        authorization,
+    )
+
+    if (
+        not isinstance(response, dict)
+        or response.get("success") is not True
+    ):
+        return response
+
+    question = data.question.strip()
+    conversation_id = data.conversation_id.strip()
+
+    if not question or not conversation_id:
+        return response
+
+    session_key = get_chat_session_key(
+        authorization,
+        request,
+        conversation_id,
+    )
+    conversation_key = f"{session_key}:{conversation_id}"
+
+    answer = (
+        response.get("answer")
+        or response.get("response")
+        or response.get("message")
+    )
+
+    if isinstance(answer, str) and answer.strip():
+        with conversation_histories_lock:
+            history = conversation_histories[conversation_key]
+
+            history.append({
+                "role": "user",
+                "text": question[:1000],
+            })
+
+            history.append({
+                "role": "assistant",
+                "text": answer[:4000],
+            })
+
+    return response

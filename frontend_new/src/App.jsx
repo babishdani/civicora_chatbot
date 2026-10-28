@@ -1,23 +1,51 @@
-
 import { useState, useRef, useEffect } from "react";
-
 import {
   Bot,
-  X,
+  Minus,
   Send,
   FileText,
   Droplets,
   BriefcaseBusiness,
-  Sparkles,
   ChevronDown,
   RefreshCw,
+  Heart,
+  HandHeart,
+  Users,
 } from "lucide-react";
 
 import "./App.css";
 
-const API_URL =
-  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
+const SUGGESTION_DELAY = 10000;
+
+// Audio files from public/sounds/
+const sendAudio = new Audio("/sounds/send.mp3");
+const responseAudio = new Audio("/sounds/response.mp3");
+
+sendAudio.preload = "auto";
+responseAudio.preload = "auto";
+
+sendAudio.volume = 0.35;
+responseAudio.volume = 0.4;
+
+function playSound(audio) {
+  try {
+    audio.currentTime = 0;
+
+    const playback = audio.play();
+
+    if (playback && typeof playback.catch === "function") {
+      playback.catch((error) => {
+        console.warn("Sound playback was blocked:", error);
+      });
+    }
+  } catch (error) {
+    console.warn("Unable to play sound:", error);
+  }
+}
+
+// Existing quick services
 const services = [
   {
     title: "Grievances",
@@ -29,7 +57,7 @@ const services = [
     title: "Blood Donors",
     description: "Access blood donor services",
     icon: Droplets,
-    message: "How can I access the blood donor service?",
+    message: "Show me the available blood donors.",
   },
   {
     title: "Job Fairs",
@@ -39,38 +67,170 @@ const services = [
   },
 ];
 
+// Citizen-service suggestions
+const suggestedQuestions = [
+  {
+    label: "Children Support",
+    question: "I need help with children support",
+    icon: Heart,
+  },
+  {
+    label: "Volunteer Register",
+    question: "I want to register as a volunteer",
+    icon: HandHeart,
+  },
+  {
+    label: "Blood Donor Request",
+    question: "I need blood",
+    icon: Droplets,
+  },
+  {
+    label: "Medical Camp",
+    question: "Tell me about medical camps",
+    icon: BriefcaseBusiness,
+  },
+  {
+    label: "Meet Your MLA",
+    question: "I want to meet the MLA",
+    icon: Users,
+  },
+  {
+    label: "Constituency Updates",
+    question: "Show constituency events, development work, public events and ward-level progress",
+    icon: FileText,
+  },
+  {
+    label: "Livelihood & SHG",
+    question: "Tell me about livelihood support, SHG, employment and placements",
+    icon: BriefcaseBusiness,
+  },
+];
+
+function getMessageTime() {
+  return new Date().toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
 export default function App() {
-  // Detect whether the chatbot is embedded in another website.
   const isEmbed =
     new URLSearchParams(window.location.search).get("embed") === "1";
 
-  // In embed mode, open the chat interface immediately.
   const [isOpen, setIsOpen] = useState(isEmbed);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState([]);
   const [showServices, setShowServices] = useState(true);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestionsDismissed, setSuggestionsDismissed] =
+    useState(false);
 
   const chatBodyRef = useRef(null);
   const inputRef = useRef(null);
   const loadingRef = useRef(false);
+  const scrollTimerRef = useRef(null);
+  const [conversationId, setConversationId] = useState(
+  () => crypto.randomUUID());
 
-  useEffect(() => {
+  const suggestionsAreVisible =
+    showSuggestions && !suggestionsDismissed && !loading;
+
+  // Scroll helper: wait until the layout has updated before scrolling.
+  function scrollChatToBottom(behavior = "smooth") {
     const chatBody = chatBodyRef.current;
 
-    if (chatBody) {
-      chatBody.scrollTo({
-        top: chatBody.scrollHeight,
-        behavior: "smooth",
+    if (!chatBody) return;
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const currentChatBody = chatBodyRef.current;
+
+        if (!currentChatBody) return;
+
+        currentChatBody.scrollTo({
+          top: currentChatBody.scrollHeight,
+          behavior,
+        });
       });
-    }
+    });
+  }
+
+  // Scroll when messages or loading state changes.
+  useEffect(() => {
+    scrollChatToBottom("smooth");
   }, [messages, loading]);
 
+  // IMPORTANT:
+  // Suggestions change the available height of the chat body.
+  // Scroll again after the suggestions transition has completed.
+  useEffect(() => {
+    if (scrollTimerRef.current) {
+      clearTimeout(scrollTimerRef.current);
+    }
+
+    if (!isOpen || messages.length === 0) {
+      return undefined;
+    }
+
+    scrollChatToBottom("auto");
+
+    // Allow CSS max-height/opacity transition to finish.
+    scrollTimerRef.current = setTimeout(() => {
+      scrollChatToBottom("smooth");
+    }, 300);
+
+    return () => {
+      if (scrollTimerRef.current) {
+        clearTimeout(scrollTimerRef.current);
+      }
+    };
+  }, [
+    isOpen,
+    messages.length,
+    suggestionsAreVisible,
+  ]);
+
+  // Focus input when the chat opens.
   useEffect(() => {
     if (isOpen && !loading) {
       inputRef.current?.focus();
     }
   }, [isOpen, loading]);
+
+  // Automatically show suggestions after the configured delay.
+  useEffect(() => {
+    if (messages.length === 0 || loading || !isOpen) {
+      setShowSuggestions(false);
+      return undefined;
+    }
+
+    setShowSuggestions(false);
+
+    const timer = setTimeout(() => {
+      setShowSuggestions(true);
+    }, SUGGESTION_DELAY);
+
+    return () => clearTimeout(timer);
+  }, [messages, loading, isOpen]);
+
+  function refreshChat() {
+    if (loadingRef.current) return;
+
+    setMessages([]);
+    setInput("");
+    setShowServices(true);
+    setShowSuggestions(false);
+    setSuggestionsDismissed(false);
+    setConversationId(crypto.randomUUID());
+
+    if (scrollTimerRef.current) {
+      clearTimeout(scrollTimerRef.current);
+    }
+
+    inputRef.current?.focus();
+  }
 
   async function sendMessage(text, isRetry = false) {
     const question = (text ?? input).trim();
@@ -79,13 +239,20 @@ export default function App() {
 
     loadingRef.current = true;
     setLoading(true);
+    setShowSuggestions(false);
+    setSuggestionsDismissed(false);
 
     if (!isRetry) {
       setMessages((oldMessages) => [
         ...oldMessages,
-        { role: "user", text: question },
+        {
+          role: "user",
+          text: question,
+          time: getMessageTime(),
+        },
       ]);
 
+      playSound(sendAudio);
       setInput("");
       setShowServices(false);
     }
@@ -93,10 +260,9 @@ export default function App() {
     try {
       const controller = new AbortController();
 
-      const timeoutId = setTimeout(
-        () => controller.abort(),
-        45000
-      );
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, 45000);
 
       let response;
 
@@ -106,7 +272,10 @@ export default function App() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ question }),
+          body: JSON.stringify({
+            question,
+            conversation_id: conversationId,
+          }),
           signal: controller.signal,
         });
       } finally {
@@ -137,11 +306,17 @@ export default function App() {
         data.message ||
         "Please contact the citizen service team for assistance.";
 
+      // Preserve the existing response delay.
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      playSound(responseAudio);
+
       setMessages((oldMessages) => [
         ...oldMessages,
         {
           role: "assistant",
           text: answer,
+          time: getMessageTime(),
           isError: false,
         },
       ]);
@@ -157,6 +332,7 @@ export default function App() {
         {
           role: "assistant",
           text: errorMessage,
+          time: getMessageTime(),
           isError: true,
           retryQuestion: question,
         },
@@ -167,10 +343,19 @@ export default function App() {
     }
   }
 
+  // Render bold text and clickable URLs from chatbot responses.
   function renderMessageText(text) {
-    const parts = text.split(/(https?:\/\/[^\s]+)/g);
+    const parts = text.split(/(\*\*.*?\*\*|https?:\/\/[^\s]+)/g);
 
     return parts.map((part, index) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return (
+          <strong key={index}>
+            {part.slice(2, -2)}
+          </strong>
+        );
+      }
+
       if (/^https?:\/\//.test(part)) {
         const url = part.replace(/[.,!?]+$/, "");
         const trailingText = part.slice(url.length);
@@ -194,9 +379,22 @@ export default function App() {
     });
   }
 
+  // Services button controls the suggestion visibility.
+  function toggleServices() {
+    setShowServices((visible) => !visible);
+
+    setShowSuggestions((visible) => !visible);
+    setSuggestionsDismissed(false);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        scrollChatToBottom("smooth");
+      });
+    });
+  }
+
   return (
     <>
-      {/* Hide the internal launcher in embedded mode. */}
       {!isEmbed && !isOpen && (
         <button
           type="button"
@@ -232,28 +430,39 @@ export default function App() {
               : undefined
           }
         >
-          <header className="chat-header">
+          <header className="chat-header civicora-header">
             <div className="chat-brand-icon">
               <Bot size={26} />
             </div>
 
             <div className="chat-brand-text">
-              <strong>Civicora</strong>
+              <strong className="civicora-title">Civicora</strong>
               <span>
                 <i />
                 Your Digital Citizen Assistant
               </span>
             </div>
 
-            {/* The parent website's orange icon controls closing. */}
+            <button
+              type="button"
+              className="chat-header-button"
+              onClick={refreshChat}
+              disabled={loading}
+              aria-label="Refresh chat"
+              title="Refresh chat"
+            >
+              <RefreshCw size={19} />
+            </button>
+
             {!isEmbed && (
               <button
                 type="button"
                 className="chat-header-button"
                 onClick={() => setIsOpen(false)}
-                aria-label="Close chatbot"
+                aria-label="Minimize chatbot"
+                title="Minimize"
               >
-                <X size={22} />
+                <Minus size={22} />
               </button>
             )}
           </header>
@@ -273,10 +482,6 @@ export default function App() {
           >
             {messages.length === 0 && (
               <div className="welcome-section">
-                <div className="welcome-avatar">
-                  <Sparkles size={23} />
-                </div>
-
                 <span className="welcome-eyebrow">
                   WELCOME TO CIVICORA
                 </span>
@@ -293,7 +498,7 @@ export default function App() {
             {messages.map((message, index) => (
               <div
                 key={`${message.role}-${index}`}
-                className={`message-row ${
+                className={`message-row message-arrive ${
                   message.role === "user"
                     ? "message-user"
                     : "message-assistant"
@@ -301,14 +506,26 @@ export default function App() {
               >
                 {message.role === "assistant" && (
                   <div className="message-avatar">
-                    <Bot size={17} />
+                    <img
+                      src="/civicora-chatbot-icon.png"
+                      alt="Civicora assistant"
+                      className="message-avatar-logo"
+                    />
                   </div>
                 )}
 
-                <div>
-                  <div className="message-bubble">
+                <div className="message-content">
+                  <div
+                    className={`message-bubble ${
+                      message.isError ? "message-error" : ""
+                    }`}
+                  >
                     {renderMessageText(message.text)}
                   </div>
+
+                  <time className="message-time">
+                    {message.time}
+                  </time>
 
                   {message.isError && (
                     <button
@@ -324,21 +541,30 @@ export default function App() {
                     </button>
                   )}
                 </div>
+
+                {message.role === "user" && (
+                  <div
+                    className="user-message-avatar"
+                    aria-label="User"
+                    title="User"
+                  >
+                    U
+                  </div>
+                )}
               </div>
             ))}
 
             {loading && (
-              <div className="message-row message-assistant">
+              <div
+                className="message-row message-assistant"
+                role="status"
+                aria-label="Loading response"
+              >
                 <div className="message-avatar">
                   <Bot size={17} />
                 </div>
 
-                <div
-                  className="minimal-thinking"
-                  aria-label="Civicora is thinking"
-                >
-                  <span>Civicora is thinking</span>
-
+                <div className="minimal-thinking minimal-thinking-icon">
                   <div className="thinking-dots">
                     <span />
                     <span />
@@ -384,6 +610,36 @@ export default function App() {
             )}
           </div>
 
+          {messages.length > 0 && (
+            <section
+              className={`compact-suggestions ${
+                suggestionsAreVisible
+                  ? "suggestions-visible"
+                  : "suggestions-hidden"
+              }`}
+              aria-hidden={!suggestionsAreVisible}
+            >
+              <div className="suggestions-container">
+                <div className="suggestion-links">
+                  {suggestedQuestions.map(
+                    ({ label, question, icon: Icon }) => (
+                      <button
+                        type="button"
+                        key={label}
+                        onClick={() => sendMessage(question)}
+                        disabled={!suggestionsAreVisible}
+                        tabIndex={suggestionsAreVisible ? 0 : -1}
+                      >
+                        <Icon size={15} />
+                        {label}
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+
           <form
             className="chat-composer"
             onSubmit={(event) => {
@@ -395,30 +651,30 @@ export default function App() {
               ref={inputRef}
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="Ask Civicora anything..."
+              placeholder="Ask about citizen services..."
               aria-label="Type your question"
               disabled={loading}
             />
 
             <button
               type="submit"
+              className="send-button"
               disabled={!input.trim() || loading}
               aria-label="Send message"
             >
-              <Send size={19} />
+              <Send size={20} />
             </button>
           </form>
 
           <footer className="chat-footer">
-            <span>Powered by Civicora AI</span>
+            <span>Powered by Alo infotech</span>
 
             <div className="footer-actions">
               <button
                 type="button"
-                onClick={() =>
-                  setShowServices((visible) => !visible)
-                }
+                onClick={toggleServices}
                 aria-expanded={showServices}
+                aria-label="Toggle services and suggestions"
               >
                 Services <ChevronDown size={14} />
               </button>
