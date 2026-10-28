@@ -5,3 +5,6 @@ __pycache__/
 *.py[cod]
 .env
 .streamlit/secrets.toml
+
+changes-backup.patch
+git-status-backup.txt
