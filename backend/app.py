@@ -213,6 +213,7 @@ app.add_middleware(
         "http://127.0.0.1:8501",
         "https://citizen-service-chatbot.vercel.app",
         "https://citizen-service-chatbot-z5qb.vercel.app",
+        "https://civivora-frontend-dj81.vercel.app/"
     ],
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
