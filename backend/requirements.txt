@@ -1,7 +1,7 @@
 fastapi
 uvicorn[standard]
 pydantic
-mysql-connector-python
+pymongo[srv]
 requests
 python-dotenv
 PyJWT

@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from schema_prompt import SCHEMA
 from db import execute_query, get_connection
 from sql_validator import validate_sql
+from mongo_db import db
 load_dotenv()
 MODEL_NAME = os.getenv(
     "GEMINI_MODEL",
@@ -794,44 +795,55 @@ def get_citizen_grievances(mobile_number):
         (mobile_number,),
         role="citizen",
     )
+
 def get_public_activities(role="citizen"):
-    """Return public activity/event information without private fields."""
+    """Return approved public activities from MongoDB."""
     if role not in ALLOWED_ROLES:
         raise PermissionError("Unsupported role.")
-    query = """
-        SELECT
-            activity_code,
-            title,
-            category,
-            activity_date,
-            location,
-            description,
-            status
-        FROM activities
-        WHERE LOWER(status) <> 'cancelled'
-        ORDER BY activity_date DESC
-        LIMIT 20
-    """
-    return execute_query(query, role=role)
+
+    return list(
+        db["activities"].find(
+            {"status": {"$not": {"$regex": "^cancelled$", "$options": "i"}}},
+            {
+                "_id": 0,
+                "activity_code": 1,
+                "title": 1,
+                "category": 1,
+                "activity_date": 1,
+                "location": 1,
+                "description": 1,
+                "status": 1,
+            },
+        )
+        .sort("activity_date", -1)
+        .limit(MAX_RESULTS)
+    )
+
+
 def get_public_job_fairs(role="citizen"):
-    """Return public job fair information without private fields."""
+    """Return approved public job fair information from MongoDB."""
     if role not in ALLOWED_ROLES:
         raise PermissionError("Unsupported role.")
-    query = """
-        SELECT
-            job_code,
-            title,
-            assumed_date,
-            status_code,
-            venue,
-            partners,
-            candidates,
-            placements
-        FROM job_fairs
-        ORDER BY assumed_date DESC
-        LIMIT 20
-    """
-    return execute_query(query, role=role)
+
+    return list(
+        db["job_fairs"].find(
+            {},
+            {
+                "_id": 0,
+                "job_code": 1,
+                "title": 1,
+                "assumed_date": 1,
+                "status_code": 1,
+                "venue": 1,
+                "partners": 1,
+                "candidates": 1,
+                "placements": 1,
+            },
+        )
+        .sort("assumed_date", -1)
+        .limit(MAX_RESULTS)
+    )
+
 # --------------------------------------------------
 # GRIEVANCE COUNTS
 # --------------------------------------------------
@@ -2220,9 +2232,35 @@ def ask_database(question, user_id=None, role="citizen"):
         # LLM generates the explanation; the service function
         # attaches the configured URL.
 
+        # Direct Job Fair routing before service/scope classification
+        if any(term in text for term in (
+            "job fair", "job fairs", "jobfair", "jobfairs",
+            "job mela", "employment fair",
+            "வேலைவாய்ப்பு முகாம்", "வேலை வாய்ப்பு முகாம்",
+            "velaivaippu mugam", "velai vaaippu mugam",
+            "job fair irukka", "job fair eppo",
+        )):
+            result = get_public_job_fairs(role="citizen")
+            print("JOB FAIR MONGODB COUNT:", len(result), flush=True)
+
+            context = f"""
+            Answer the user's job fair question using only these verified
+            MongoDB records: {result}
+
+            Do not invent details. If no records exist, say that no job fair
+            records are currently available. Mention missing fields as
+            "Not specified".
+            """
+            return generate_chat_response(question, context)
+
         service = detect_civicora_service(question)
 
+        scope = classify_question_scope(question)
+        print("ASK_DATABASE FUNCTION REACHED:", repr(question), flush=True)
+
         print("SERVICE ROUTING DEBUG")
+        
+        print("DEBUG: UPDATED CHATBOT CODE RUNNING")
         print("Question:", question)
         print("Detected service:", service)
 
@@ -2230,6 +2268,13 @@ def ask_database(question, user_id=None, role="citizen"):
             response = build_service_response(service, question)
             print("Service response generated.")
             return response
+
+        # DEBUG: Check job fair and activity routing
+        if "job fair" in text or "job fairs" in text:
+            print("DEBUG: JOB FAIR KEYWORD MATCHED")
+
+        if "activity" in text or "activities" in text:
+            print("DEBUG: ACTIVITY KEYWORD MATCHED")
 
         # 7. Classify the question before generating SQL
         scope = classify_question_scope(question)
@@ -2273,20 +2318,13 @@ def ask_database(question, user_id=None, role="citizen"):
 
             return generate_chat_response(question, context)
 
-        # 8. Job fairs
+
+        # 8. Job fairs — MongoDB
         job_fair_terms = (
+            # English
             "job fair", "job fairs", "jobfair", "jobfairs",
-                        # English
-            "job fair",
-            "job fairs",
-            "job mela",
-            "job",
-            "fairs",
-            "jobs",
-            "fair",
-            "employment fair",
-            "job opportunities",
-            "upcoming job fair",
+            "job mela", "employment fair",
+            "job opportunities", "upcoming job fair",
             "jobs available",
 
             # Tamil
@@ -2310,19 +2348,17 @@ def ask_database(question, user_id=None, role="citizen"):
             "job fair eppo",
             "job fair details",
             "job mela irukka",
-            "velai kidaikkuma",
         )
 
         if any(term in text for term in job_fair_terms):
             result = get_public_job_fairs(role="citizen")
 
-            print("JOB FAIR RESULT TYPE:", type(result).__name__)
-            print("JOB FAIR RESULT:", repr(result))
+            print("JOB FAIR MONGODB COUNT:", len(result), flush=True)
 
             context = f"""
             The user is asking about job fairs.
 
-            Use only the verified records below.
+            Use only the verified MongoDB records below.
             Present each relevant record separately as a numbered list.
 
             For each record, include these fields when available:
@@ -2338,13 +2374,15 @@ def ask_database(question, user_id=None, role="citizen"):
             Put each field on its own line.
             Do not invent missing values.
             If a value is unavailable, say "Not specified".
-            Do not output raw SQL results or pipe-separated rows.
+            If no records are returned, clearly say no job fair
+            records are currently available.
 
             Verified job fair records:
             {result}
             """
 
             return generate_chat_response(question, context)
+
 
         # 9. Public events and activities
         event_terms = (
@@ -2354,6 +2392,7 @@ def ask_database(question, user_id=None, role="citizen"):
 
         if any(term in text for term in event_terms):
             result = get_public_activities(role="citizen")
+            print("ACTIVITIES MONGODB COUNT:", len(result), flush=True)
 
             context = f"""
             The user is asking about public activities or events.
