@@ -10,3 +10,4 @@ sqlglot
 google-genai
 groq
 mysql-connector-python
+openai
