@@ -337,85 +337,49 @@ def get_current_user(authorization: str | None):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    raw_user_id = payload.get("sub")
+    user_id = payload.get("sub")
     token_role = payload.get("role")
 
-    try:
-        if isinstance(raw_user_id, bool):
-            raise ValueError
-
-        user_id = int(raw_user_id)
-
-        if user_id <= 0:
-            raise ValueError
-
-    except (TypeError, ValueError):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid user identity in authentication token.",
-        )
-
     if (
-        not isinstance(token_role, str)
+        not isinstance(user_id, str)
+        or not user_id
+        or not isinstance(token_role, str)
         or token_role not in ALLOWED_ROLES
     ):
         raise HTTPException(
             status_code=401,
-            detail="Invalid role in authentication token.",
+            detail="Invalid user identity or role.",
         )
 
     try:
-        rows = execute_query(
-            """
-            SELECT id, role, is_active
-            FROM users
-            WHERE id = %s
-            LIMIT 1
-            """,
-            (user_id,),
-            role="admin",
+        from mongo_db import users_collection
+
+        user = users_collection.find_one(
+            {"_id": user_id},
+            {"role": 1, "is_active": 1},
         )
 
     except Exception as error:
         print("AUTH DATABASE ERROR:", type(error).__name__)
-
         raise HTTPException(
             status_code=503,
             detail="Authentication service is temporarily unavailable.",
         ) from error
 
-    if not isinstance(rows, list) or not rows:
-        raise HTTPException(
-            status_code=401,
-            detail="User account not found. Please log in again.",
-        )
-
-    user_row = rows[0]
-
-    if isinstance(user_row, dict):
-        db_user_id = user_row.get("id")
-        db_role = user_row.get("role")
-        is_active = user_row.get("is_active")
-    else:
-        db_user_id, db_role, is_active = user_row
-
     if (
-        int(db_user_id) != user_id
-        or db_role not in ALLOWED_ROLES
-        or str(is_active).strip().lower() not in ("1", "true")
-        or db_role != token_role
+        not user
+        or user.get("role") != token_role
+        or user.get("role") != "citizen"
+        or user.get("is_active") is not True
     ):
         raise HTTPException(
             status_code=401,
-            detail=(
-                "User account is inactive or permissions have changed. "
-                "Please log in again."
-            ),
+            detail="User account is inactive or permissions have changed.",
         )
 
     return {
         "user_id": user_id,
-        "role": db_role,
+        "role": token_role,
     }
 
 

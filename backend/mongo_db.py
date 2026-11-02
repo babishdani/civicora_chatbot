@@ -1,3 +1,4 @@
+
 import os
 from pymongo import MongoClient
 from dotenv import load_dotenv
@@ -21,8 +22,15 @@ client = MongoClient(
 db = client[MONGODB_DATABASE]
 
 
+# MongoDB collections
+users_collection = db["users"]
+otp_collection = db["otp_codes"]
+refresh_tokens_collection = db["refresh_tokens"]
+
+
 def test_connection():
     client.admin.command("ping")
+
     return {
         "success": True,
         "message": "MongoDB connection successful",

@@ -2,24 +2,18 @@
 import jwt
 from datetime import datetime, timedelta, timezone
 
-from db import execute_query
+from mongo_db import users_collection
 from config import (
     SECRET_KEY,
     ALGORITHM,
     ACCESS_TOKEN_EXPIRE_MINUTES,
 )
 
-
 # Citizen role mattum allowed
 ALLOWED_ROLES = {"citizen"}
 
 
 def login_user(mobile_number, password=None, role=None):
-    """
-    Development-only passwordless login.
-    Use only with dummy data in local testing.
-    Production-la secure authentication use pannanum.
-    """
 
     # Validate mobile number
     if not isinstance(mobile_number, str):
@@ -39,45 +33,40 @@ def login_user(mobile_number, password=None, role=None):
 
     role = role.strip().lower()
 
-    # Citizen role mattum accept pannum
     if role not in ALLOWED_ROLES or not mobile_number:
         return {
             "success": False,
             "message": "Invalid credentials",
         }
 
-    # Database-la active citizen account check pannum
-    query = """
-        SELECT id, role
-        FROM users
-        WHERE mobile_number = %s
-          AND role = %s
-          AND is_active = 1
-        LIMIT 1
-    """
-
     try:
-        result = execute_query(
-            query,
-            (mobile_number, role),
-            role="admin",
+        # MongoDB-la active citizen account check
+        user = users_collection.find_one(
+            {
+                "mobile_number": mobile_number,
+                "role": role,
+                "is_active": True,
+            },
+            {
+                "_id": 1,
+                "role": 1,
+            },
         )
 
     except Exception as error:
         print("LOGIN DATABASE ERROR:", type(error).__name__)
         raise
 
-    # Account illana login reject pannum
-    if not result:
+    # Account illana login reject
+    if not user:
         return {
             "success": False,
             "message": "Invalid credentials",
         }
 
-    user_id = result[0][0]
-    user_role = str(result[0][1]).strip().lower()
+    user_id = str(user["_id"])
+    user_role = str(user.get("role", "")).strip().lower()
 
-    # Database role-um citizen-ah irukkanum
     if user_role != "citizen":
         return {
             "success": False,
@@ -88,7 +77,7 @@ def login_user(mobile_number, password=None, role=None):
     now = datetime.now(timezone.utc)
 
     payload = {
-        "sub": str(user_id),
+        "sub": user_id,
         "role": user_role,
         "iat": now,
         "exp": now + timedelta(
