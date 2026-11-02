@@ -205,15 +205,21 @@ def format_public_records(records, kind):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        # Local development
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:5174",
         "http://127.0.0.1:5174",
         "http://localhost:8501",
         "http://127.0.0.1:8501",
+
+        # Current Civicora deployment
+        "https://civicora-chatbot.vercel.app",
+
+        # Previous Vercel deployments
         "https://citizen-service-chatbot.vercel.app",
         "https://citizen-service-chatbot-z5qb.vercel.app",
-        "https://civivora-frontend-dj81.vercel.app/"
+        "https://civivora-frontend-dj81.vercel.app",
     ],
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
