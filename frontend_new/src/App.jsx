@@ -232,6 +232,17 @@ export default function App() {
     inputRef.current?.focus();
   }
 
+  function handleInputChange(event) {
+    const value = event.target.value;
+
+    const formattedValue =
+      value.length > 0
+        ? value.charAt(0).toUpperCase() + value.slice(1)
+        : "";
+
+    setInput(formattedValue);
+  }
+
   async function sendMessage(text, isRetry = false) {
     const question = (text ?? input).trim();
 
@@ -650,7 +661,7 @@ export default function App() {
             <input
               ref={inputRef}
               value={input}
-              onChange={(event) => setInput(event.target.value)}
+              onChange={handleInputChange}
               placeholder="Ask about citizen services..."
               aria-label="Type your question"
               disabled={loading}
