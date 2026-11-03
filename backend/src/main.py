@@ -219,6 +219,8 @@ app.add_middleware(
         "https://citizen-service-chatbot.vercel.app",
         "https://citizen-service-chatbot-z5qb.vercel.app",
         "https://civivora-frontend-dj81.vercel.app",
+        # New frontend deployment
+        "https://civicora-chatbot-eqh1xvxoc-babish2.vercel.app",
     ],
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
