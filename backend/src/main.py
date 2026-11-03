@@ -360,7 +360,7 @@ def get_current_user(authorization: str | None):
         )
 
     try:
-        from mongo_db import users_collection
+        from src.database.mongo_db import users_collection
 
         user = users_collection.find_one(
             {"_id": user_id},
