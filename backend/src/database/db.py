@@ -1,10 +1,8 @@
-
 import mysql.connector
 
-from config import DB_CONFIG
-from privacy import sanitize_result
-from sql_validator import validate_sql
-
+from src.core.config import DB_CONFIG
+from src.security.privacy import sanitize_result
+from src.security.sql_validator import validate_sql
 
 def get_connection():
     return mysql.connector.connect(

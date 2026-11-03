@@ -8,3 +8,17 @@ __pycache__/
 
 changes-backup.patch
 git-status-backup.txt
+
+# Backend Python
+backend/.venv/
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.pytest_cache/
+backend/*.log
+
+# Environment example should be tracked
+!.env.example
+
+# Local backup - do not upload
+/backend_backup/

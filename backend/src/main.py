@@ -8,11 +8,11 @@ from pydantic import BaseModel, Field
 import jwt
 import traceback
 
-from login_service import login_user
-from config import SECRET_KEY, ALGORITHM
-from db import execute_query, get_citizen_mobile_for_auth
+from src.services.login_service import login_user
+from src.core.config import SECRET_KEY, ALGORITHM
+from src.database.db import execute_query, get_citizen_mobile_for_auth
 
-from chatbot import (
+from src.services.chatbot import (
     ask_database,
     get_public_job_fairs,
     get_public_activities,
@@ -21,9 +21,8 @@ from chatbot import (
     detect_civicora_service,
     build_service_response,
 )
-from scope_guard import classify_question, OUT_OF_SCOPE_REPLY
 
-
+from src.utils.scope_guard import classify_question, OUT_OF_SCOPE_REPLY
 app = FastAPI(title="Citizen Chatbot API")
 
 # --------------------------------------------------

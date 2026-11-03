@@ -1,0 +1,508 @@
+﻿
+==================================================
+TABLE: activities
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: activity_code | Type: varchar(255) | Null: YES | Key: UNI
+Column: title | Type: varchar(255) | Null: NO | Key: 
+Column: category | Type: varchar(255) | Null: NO | Key: 
+Column: activity_date | Type: datetime | Null: NO | Key: 
+Column: location | Type: varchar(255) | Null: NO | Key: 
+Column: description | Type: text | Null: NO | Key: 
+Column: status | Type: varchar(255) | Null: NO | Key: 
+Column: created_by | Type: int unsigned | Null: YES | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: activity_photos
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: activity_id | Type: int unsigned | Null: NO | Key: MUL
+Column: key | Type: varchar(255) | Null: NO | Key: 
+Column: url | Type: varchar(255) | Null: NO | Key: 
+Column: name | Type: varchar(255) | Null: YES | Key: 
+Column: position | Type: int | Null: NO | Key: 
+
+==================================================
+TABLE: appointments
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: appointment_code | Type: varchar(255) | Null: YES | Key: UNI
+Column: appointment_date | Type: date | Null: NO | Key: MUL
+Column: hour | Type: int unsigned | Null: NO | Key: 
+Column: minute | Type: int unsigned | Null: NO | Key: 
+Column: purpose | Type: text | Null: NO | Key: 
+Column: full_name | Type: varchar(255) | Null: NO | Key: 
+Column: mobile | Type: varchar(15) | Null: NO | Key: 
+Column: email | Type: varchar(255) | Null: NO | Key: 
+Column: status | Type: enum('new','accepted','rejected') | Null: NO | Key: MUL
+Column: reviewed_at | Type: datetime | Null: YES | Key: 
+Column: reviewed_by | Type: int unsigned | Null: YES | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: blocks
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: code | Type: varchar(255) | Null: NO | Key: UNI
+Column: label | Type: varchar(255) | Null: NO | Key: 
+Column: sort_order | Type: int | Null: NO | Key: 
+Column: is_active | Type: tinyint(1) | Null: NO | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: blood_donors
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: full_name | Type: varchar(255) | Null: NO | Key: 
+Column: phone | Type: varchar(15) | Null: NO | Key: MUL
+Column: blood_group | Type: varchar(5) | Null: NO | Key: MUL
+Column: age | Type: int unsigned | Null: NO | Key: 
+Column: panchayat | Type: varchar(255) | Null: YES | Key: 
+Column: address | Type: varchar(255) | Null: YES | Key: 
+Column: status | Type: enum('available','unavailable') | Null: NO | Key: MUL
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: blood_requests
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: patient_name | Type: varchar(255) | Null: NO | Key: 
+Column: hospital | Type: varchar(255) | Null: NO | Key: 
+Column: blood_group | Type: varchar(5) | Null: NO | Key: MUL
+Column: units | Type: int unsigned | Null: NO | Key: 
+Column: contact_name | Type: varchar(255) | Null: NO | Key: 
+Column: contact_phone | Type: varchar(15) | Null: NO | Key: 
+Column: urgency | Type: enum('Critical','Urgent','Routine') | Null: NO | Key: MUL
+Column: panchayat | Type: varchar(255) | Null: YES | Key: 
+Column: notes | Type: text | Null: YES | Key: 
+Column: status | Type: enum('new','urgent','fulfilled','closed') | Null: NO | Key: MUL
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: code_sequences
+==================================================
+Column: entity_name | Type: varchar(64) | Null: NO | Key: PRI
+Column: next_value | Type: int unsigned | Null: NO | Key: 
+
+==================================================
+TABLE: constituency_gallery_images
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: position | Type: int unsigned | Null: NO | Key: UNI
+Column: key | Type: varchar(255) | Null: NO | Key: 
+Column: url | Type: varchar(255) | Null: NO | Key: 
+Column: name | Type: varchar(255) | Null: YES | Key: 
+Column: caption_en | Type: varchar(255) | Null: NO | Key: 
+Column: caption_ta | Type: varchar(255) | Null: NO | Key: 
+Column: updated_by | Type: int unsigned | Null: YES | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: email_account_health
+==================================================
+Column: account_key | Type: varchar(20) | Null: NO | Key: PRI
+Column: sent_today | Type: int unsigned | Null: NO | Key: 
+Column: sent_today_date | Type: date | Null: YES | Key: 
+Column: cooldown_until | Type: datetime | Null: YES | Key: 
+Column: last_success_at | Type: datetime | Null: YES | Key: 
+Column: last_error_at | Type: datetime | Null: YES | Key: 
+Column: last_error | Type: text | Null: YES | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: email_queue
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: log_id | Type: int unsigned | Null: YES | Key: 
+Column: to | Type: varchar(255) | Null: NO | Key: 
+Column: subject | Type: varchar(500) | Null: NO | Key: 
+Column: html | Type: longtext | Null: NO | Key: 
+Column: text | Type: longtext | Null: NO | Key: 
+Column: status | Type: enum('PENDING','SENT','FAILED') | Null: NO | Key: 
+Column: attempts | Type: int unsigned | Null: NO | Key: 
+Column: provider_key | Type: varchar(20) | Null: YES | Key: 
+Column: last_error | Type: text | Null: YES | Key: 
+Column: sent_at | Type: datetime | Null: YES | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: employees
+==================================================
+Column: emp_id | Type: int | Null: NO | Key: PRI
+Column: emp_name | Type: varchar(100) | Null: NO | Key: 
+Column: email | Type: varchar(100) | Null: YES | Key: UNI
+Column: department | Type: varchar(50) | Null: YES | Key: 
+Column: salary | Type: decimal(10,2) | Null: YES | Key: 
+Column: city | Type: varchar(100) | Null: YES | Key: 
+Column: status | Type: varchar(20) | Null: YES | Key: 
+Column: joining_date | Type: date | Null: YES | Key: 
+Column: phone_number | Type: varchar(15) | Null: YES | Key: 
+
+==================================================
+TABLE: grievance_attachments
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: grievance_id | Type: int unsigned | Null: NO | Key: MUL
+Column: url | Type: varchar(255) | Null: NO | Key: 
+Column: key | Type: varchar(255) | Null: NO | Key: 
+Column: name | Type: varchar(255) | Null: NO | Key: 
+Column: position | Type: int | Null: NO | Key: 
+
+==================================================
+TABLE: grievance_categories
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: code | Type: varchar(255) | Null: NO | Key: UNI
+Column: label | Type: varchar(255) | Null: NO | Key: 
+Column: sort_order | Type: int | Null: NO | Key: 
+Column: is_active | Type: tinyint(1) | Null: NO | Key: 
+Column: head_officer | Type: varchar(255) | Null: YES | Key: 
+Column: contact_number | Type: varchar(255) | Null: YES | Key: 
+Column: email | Type: varchar(255) | Null: YES | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+Column: enable_livelihood | Type: tinyint(1) | Null: NO | Key: 
+Column: enable_updates | Type: tinyint(1) | Null: NO | Key: 
+Column: enable_citizen_services | Type: tinyint(1) | Null: NO | Key: 
+
+==================================================
+TABLE: grievance_email_logs
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: grievance_id | Type: int unsigned | Null: YES | Key: 
+Column: appointment_id | Type: int unsigned | Null: YES | Key: 
+Column: event_type | Type: varchar(40) | Null: NO | Key: 
+Column: work_progress | Type: int | Null: YES | Key: 
+Column: recipient_email | Type: varchar(255) | Null: NO | Key: 
+Column: recipient_role | Type: varchar(20) | Null: NO | Key: 
+Column: status | Type: enum('PENDING','SENT','FAILED','SKIPPED') | Null: NO | Key: 
+Column: provider_key | Type: varchar(20) | Null: YES | Key: 
+Column: last_error | Type: text | Null: YES | Key: 
+Column: subject | Type: varchar(500) | Null: YES | Key: 
+Column: sent_at | Type: datetime | Null: YES | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: grievance_feedback
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: grievance_id | Type: int unsigned | Null: NO | Key: UNI
+Column: rating | Type: int | Null: NO | Key: 
+Column: comment | Type: text | Null: NO | Key: 
+Column: status | Type: enum('pending','approved','rejected') | Null: NO | Key: MUL
+Column: reviewed_at | Type: datetime | Null: YES | Key: 
+Column: reviewed_by | Type: int unsigned | Null: YES | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: grievance_history
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: grievance_id | Type: int unsigned | Null: NO | Key: MUL
+Column: actor | Type: varchar(255) | Null: NO | Key: 
+Column: role | Type: varchar(255) | Null: NO | Key: 
+Column: type | Type: varchar(255) | Null: NO | Key: 
+Column: status_code | Type: varchar(255) | Null: NO | Key: 
+Column: note | Type: text | Null: NO | Key: 
+Column: at | Type: datetime | Null: NO | Key: 
+Column: work_progress | Type: int | Null: YES | Key: 
+
+==================================================
+TABLE: grievance_notifications
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: grievance_id | Type: int unsigned | Null: NO | Key: MUL
+Column: channel | Type: varchar(255) | Null: NO | Key: 
+Column: to | Type: varchar(255) | Null: NO | Key: 
+Column: message | Type: text | Null: NO | Key: 
+Column: at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: grievance_statuses
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: code | Type: varchar(255) | Null: NO | Key: UNI
+Column: label | Type: varchar(255) | Null: NO | Key: 
+Column: sort_order | Type: int | Null: NO | Key: 
+Column: is_active | Type: tinyint(1) | Null: NO | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: grievances
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: grievance_code | Type: varchar(255) | Null: YES | Key: UNI
+Column: title | Type: varchar(255) | Null: NO | Key: 
+Column: category_code | Type: varchar(255) | Null: NO | Key: MUL
+Column: sub_category | Type: varchar(255) | Null: NO | Key: 
+Column: description | Type: text | Null: NO | Key: 
+Column: citizen_name | Type: varchar(255) | Null: NO | Key: 
+Column: citizen_mobile | Type: varchar(255) | Null: NO | Key: 
+Column: citizen_email | Type: varchar(255) | Null: NO | Key: 
+Column: block_code | Type: varchar(255) | Null: NO | Key: MUL
+Column: panchayat_code | Type: varchar(255) | Null: NO | Key: MUL
+Column: village_code | Type: varchar(255) | Null: NO | Key: MUL
+Column: ward_street | Type: varchar(255) | Null: NO | Key: 
+Column: landmark | Type: varchar(255) | Null: NO | Key: 
+Column: manual_override | Type: tinyint(1) | Null: NO | Key: 
+Column: status_code | Type: varchar(255) | Null: NO | Key: MUL
+Column: work_stage_code | Type: varchar(255) | Null: NO | Key: 
+Column: work_progress | Type: int | Null: NO | Key: 
+Column: priority_score | Type: int | Null: NO | Key: 
+Column: priority_rank | Type: varchar(255) | Null: NO | Key: 
+Column: priority_label | Type: varchar(255) | Null: NO | Key: 
+Column: priority_population | Type: int | Null: NO | Key: 
+Column: priority_safety | Type: int | Null: NO | Key: 
+Column: priority_political | Type: int | Null: NO | Key: 
+Column: priority_disruption | Type: int | Null: NO | Key: 
+Column: escalation_level | Type: varchar(255) | Null: NO | Key: 
+Column: escalated_at | Type: datetime | Null: YES | Key: 
+Column: attachment_url | Type: varchar(255) | Null: NO | Key: 
+Column: attachment_key | Type: varchar(255) | Null: NO | Key: 
+Column: attachment_name | Type: varchar(255) | Null: NO | Key: 
+Column: resolution_proof_url | Type: varchar(255) | Null: NO | Key: 
+Column: resolution_proof_key | Type: varchar(255) | Null: NO | Key: 
+Column: resolution_proof_name | Type: varchar(255) | Null: NO | Key: 
+Column: feedback_submitted_at | Type: datetime | Null: YES | Key: 
+Column: citizen_email_alert_status | Type: enum('NONE','SENT','FAILED') | Null: NO | Key: 
+Column: citizen_email_alert_message | Type: text | Null: YES | Key: 
+Column: status_reason | Type: text | Null: YES | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+Column: voice_note_url | Type: varchar(255) | Null: NO | Key: 
+Column: voice_note_key | Type: varchar(255) | Null: NO | Key: 
+Column: voice_note_name | Type: varchar(255) | Null: NO | Key: 
+
+==================================================
+TABLE: industrial_sectors
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: code | Type: varchar(255) | Null: NO | Key: UNI
+Column: label | Type: varchar(255) | Null: NO | Key: 
+Column: sort_order | Type: int | Null: NO | Key: 
+Column: is_active | Type: tinyint(1) | Null: NO | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: job_fair_statuses
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: code | Type: varchar(255) | Null: NO | Key: UNI
+Column: label | Type: varchar(255) | Null: NO | Key: 
+Column: sort_order | Type: int | Null: NO | Key: 
+Column: is_active | Type: tinyint(1) | Null: NO | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: job_fairs
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: job_code | Type: varchar(255) | Null: YES | Key: UNI
+Column: title | Type: varchar(255) | Null: NO | Key: 
+Column: assumed_date | Type: datetime | Null: NO | Key: 
+Column: status_code | Type: varchar(255) | Null: NO | Key: MUL
+Column: venue | Type: varchar(255) | Null: NO | Key: 
+Column: partners | Type: int | Null: NO | Key: 
+Column: candidates | Type: int | Null: NO | Key: 
+Column: placements | Type: int | Null: NO | Key: 
+Column: created_by | Type: int unsigned | Null: YES | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: medical_care_requests
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: support_type | Type: enum('geriatric','palliative','medical','disability','mental_health','caregiver','nutrition','home_nursing','rehabilitation','dementia','emergency','hospice') | Null: NO | Key: MUL
+Column: beneficiary_name | Type: varchar(255) | Null: NO | Key: 
+Column: age | Type: int unsigned | Null: YES | Key: 
+Column: guardian_name | Type: varchar(255) | Null: YES | Key: 
+Column: phone | Type: varchar(15) | Null: NO | Key: MUL
+Column: panchayat | Type: varchar(255) | Null: NO | Key: 
+Column: ward | Type: varchar(255) | Null: YES | Key: 
+Column: address | Type: varchar(255) | Null: YES | Key: 
+Column: condition_notes | Type: text | Null: YES | Key: 
+Column: assistance_requested | Type: text | Null: YES | Key: 
+Column: status | Type: enum('new','in_progress','resolved','closed') | Null: NO | Key: MUL
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: otp_codes
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: mobile_number | Type: varchar(255) | Null: NO | Key: MUL
+Column: otp_hash | Type: varchar(255) | Null: NO | Key: 
+Column: purpose | Type: enum('login') | Null: NO | Key: 
+Column: attempts | Type: int | Null: NO | Key: 
+Column: consumed_at | Type: datetime | Null: YES | Key: 
+Column: expires_at | Type: datetime | Null: NO | Key: MUL
+Column: blocked_until | Type: datetime | Null: YES | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: panchayats
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: code | Type: varchar(255) | Null: NO | Key: UNI
+Column: label | Type: varchar(255) | Null: NO | Key: 
+Column: sort_order | Type: int | Null: NO | Key: 
+Column: is_active | Type: tinyint(1) | Null: NO | Key: 
+Column: block_id | Type: int unsigned | Null: YES | Key: MUL
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: placement_streams
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: code | Type: varchar(255) | Null: NO | Key: UNI
+Column: label | Type: varchar(255) | Null: NO | Key: 
+Column: sort_order | Type: int | Null: NO | Key: 
+Column: is_active | Type: tinyint(1) | Null: NO | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: placements
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: placement_code | Type: varchar(255) | Null: YES | Key: UNI
+Column: candidate_name | Type: varchar(255) | Null: NO | Key: 
+Column: employer | Type: varchar(255) | Null: NO | Key: 
+Column: sector_code | Type: varchar(255) | Null: NO | Key: MUL
+Column: block_code | Type: varchar(255) | Null: NO | Key: MUL
+Column: stream_code | Type: varchar(255) | Null: NO | Key: MUL
+Column: salary | Type: decimal(12,2) | Null: NO | Key: 
+Column: appointment_date | Type: datetime | Null: NO | Key: 
+Column: created_by | Type: int unsigned | Null: YES | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: refresh_tokens
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: user_id | Type: int unsigned | Null: NO | Key: MUL
+Column: token_hash | Type: varchar(255) | Null: NO | Key: UNI
+Column: expires_at | Type: datetime | Null: NO | Key: 
+Column: revoked_at | Type: datetime | Null: YES | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: self_help_groups
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: shg_code | Type: varchar(255) | Null: YES | Key: UNI
+Column: name | Type: varchar(255) | Null: NO | Key: 
+Column: block_code | Type: varchar(255) | Null: NO | Key: MUL
+Column: village_code | Type: varchar(255) | Null: NO | Key: MUL
+Column: members | Type: int | Null: NO | Key: 
+Column: scheme_code | Type: varchar(255) | Null: NO | Key: MUL
+Column: amount | Type: decimal(12,2) | Null: NO | Key: 
+Column: activity | Type: varchar(255) | Null: NO | Key: 
+Column: disbursal_date | Type: datetime | Null: NO | Key: 
+Column: created_by | Type: int unsigned | Null: YES | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: shg_schemes
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: code | Type: varchar(255) | Null: NO | Key: UNI
+Column: label | Type: varchar(255) | Null: NO | Key: 
+Column: sort_order | Type: int | Null: NO | Key: 
+Column: is_active | Type: tinyint(1) | Null: NO | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: social_posts
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: platform | Type: varchar(20) | Null: NO | Key: MUL
+Column: external_id | Type: varchar(64) | Null: NO | Key: 
+Column: kind | Type: varchar(20) | Null: YES | Key: 
+Column: url | Type: varchar(500) | Null: NO | Key: 
+Column: title | Type: varchar(500) | Null: NO | Key: 
+Column: thumbnail_url | Type: varchar(500) | Null: YES | Key: 
+Column: published_at | Type: datetime | Null: YES | Key: 
+Column: position | Type: int unsigned | Null: YES | Key: 
+Column: source | Type: varchar(10) | Null: NO | Key: 
+Column: hidden | Type: tinyint(1) | Null: NO | Key: 
+Column: updated_by | Type: int unsigned | Null: YES | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+Column: meta | Type: text | Null: YES | Key: 
+
+==================================================
+TABLE: social_settings
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: key | Type: varchar(50) | Null: NO | Key: UNI
+Column: value | Type: varchar(500) | Null: NO | Key: 
+Column: updated_by | Type: int unsigned | Null: YES | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: users
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: role | Type: enum('admin','commander','citizen') | Null: NO | Key: 
+Column: category_id | Type: int unsigned | Null: YES | Key: MUL
+Column: name | Type: varchar(255) | Null: YES | Key: 
+Column: is_active | Type: tinyint(1) | Null: NO | Key: 
+Column: last_login_at | Type: datetime | Null: YES | Key: 
+Column: official_id | Type: varchar(255) | Null: YES | Key: UNI
+Column: password_hash | Type: varchar(255) | Null: YES | Key: 
+Column: mobile_number | Type: varchar(255) | Null: YES | Key: UNI
+Column: email | Type: varchar(255) | Null: YES | Key: 
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+Column: login_password | Type: varchar(255) | Null: YES | Key: 
+
+==================================================
+TABLE: villages
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: code | Type: varchar(255) | Null: NO | Key: UNI
+Column: label | Type: varchar(255) | Null: NO | Key: 
+Column: sort_order | Type: int | Null: NO | Key: 
+Column: is_active | Type: tinyint(1) | Null: NO | Key: 
+Column: panchayat_id | Type: int unsigned | Null: YES | Key: MUL
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+
+==================================================
+TABLE: volunteer_registrations
+==================================================
+Column: id | Type: int unsigned | Null: NO | Key: PRI
+Column: full_name | Type: varchar(255) | Null: NO | Key: 
+Column: phone | Type: varchar(15) | Null: NO | Key: MUL
+Column: email | Type: varchar(255) | Null: YES | Key: 
+Column: age | Type: int unsigned | Null: YES | Key: 
+Column: panchayat | Type: varchar(255) | Null: NO | Key: 
+Column: ward | Type: varchar(255) | Null: YES | Key: 
+Column: category | Type: varchar(255) | Null: NO | Key: MUL
+Column: skills | Type: text | Null: YES | Key: 
+Column: availability | Type: varchar(255) | Null: YES | Key: 
+Column: status | Type: enum('pending','active','inactive') | Null: NO | Key: MUL
+Column: created_at | Type: datetime | Null: NO | Key: 
+Column: updated_at | Type: datetime | Null: NO | Key: 
+

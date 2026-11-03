@@ -1,0 +1,56 @@
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Python virtual environments
+venv/
+.venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Test and coverage cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+
+# IDE and editor
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local backups - never upload
+backend_backup/
+changes-backup.patch
+git-status-backup.txt
+
+# Backend environment and secrets
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Python generated files
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+backend/venv/
+backend/.venv/
+
+# Logs and temporary files
+*.log
+*.tmp

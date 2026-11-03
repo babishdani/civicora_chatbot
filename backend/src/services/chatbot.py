@@ -1,21 +1,28 @@
 import re
 import os
+import time
+
 from google import genai
 from groq import Groq
 from openai import OpenAI
-import time
 from dotenv import load_dotenv
-from schema_prompt import SCHEMA
-from db import execute_query, get_connection
-from sql_validator import validate_sql
-from mongo_db import db
+
+from src.prompts.schema_prompt import SCHEMA
+from src.database.db import execute_query, get_connection
+from src.security.sql_validator import validate_sql
+from src.database.mongo_db import db
+
 load_dotenv()
+
 MODEL_NAME = os.getenv(
     "GEMINI_MODEL",
     "gemini-3.8-flash"
 )
+
 MAX_RESULTS = 20
+
 ALLOWED_ROLES = {"citizen"}
+
 FORBIDDEN_IDENTIFIERS = {
     "password", "password_hash", "login_password",
     "otp", "otp_hash", "access_token", "refresh_token",
@@ -24,9 +31,6 @@ FORBIDDEN_IDENTIFIERS = {
     "mobile_number", "phone_number", "email", "address",
     "reporter_name", "reporter_contact",
 }
-
-import time  # Add this with your other imports
-
 
 def detect_response_language(question):
     """Detect the language to use for the chatbot response."""

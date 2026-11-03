@@ -1,9 +1,8 @@
-
 import jwt
 from datetime import datetime, timedelta, timezone
 
-from mongo_db import users_collection
-from config import (
+from src.database.mongo_db import users_collection
+from src.core.config import (
     SECRET_KEY,
     ALGORITHM,
     ACCESS_TOKEN_EXPIRE_MINUTES,
