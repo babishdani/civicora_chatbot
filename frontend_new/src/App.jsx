@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from "react";
 import {
   Bot,
@@ -15,11 +16,21 @@ import {
 
 import "./App.css";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+/* =========================================================
+   1. CONFIGURATION
+========================================================= */
+
+const API_URL =
+  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 const SUGGESTION_DELAY = 10000;
+const REQUEST_TIMEOUT = 45000;
+const RESPONSE_DELAY = 2000;
 
-// Audio files from public/sounds/
+/* =========================================================
+   2. AUDIO CONFIGURATION
+========================================================= */
+
 const sendAudio = new Audio("/sounds/send.mp3");
 const responseAudio = new Audio("/sounds/response.mp3");
 
@@ -45,7 +56,10 @@ function playSound(audio) {
   }
 }
 
-// Existing quick services
+/* =========================================================
+   3. QUICK SERVICES
+========================================================= */
+
 const services = [
   {
     title: "Grievances",
@@ -67,7 +81,10 @@ const services = [
   },
 ];
 
-// Citizen-service suggestions
+/* =========================================================
+   4. SUGGESTED QUESTIONS
+========================================================= */
+
 const suggestedQuestions = [
   {
     label: "Children Support",
@@ -96,15 +113,23 @@ const suggestedQuestions = [
   },
   {
     label: "Constituency Updates",
-    question: "Show constituency events, development work, public events and ward-level progress",
+    question:
+      "Show constituency events, development work, public events and ward-level progress",
     icon: FileText,
   },
   {
     label: "Livelihood & SHG",
-    question: "Tell me about livelihood support, SHG, employment and placements",
+    question:
+      "Tell me about livelihood support, SHG, employment and placements",
     icon: BriefcaseBusiness,
   },
 ];
+
+/* =========================================================
+   5. UTILITY FUNCTIONS
+========================================================= */
+
+// Generate message timestamp.
 
 function getMessageTime() {
   return new Date().toLocaleTimeString("en-IN", {
@@ -114,57 +139,91 @@ function getMessageTime() {
   });
 }
 
+// Generate a unique conversation ID.
+
+function createConversationId() {
+  return crypto.randomUUID();
+}
+
+/* =========================================================
+   6. MAIN APP COMPONENT
+========================================================= */
+
 export default function App() {
+  /* -------------------------------------------------------
+     EMBED MODE
+  ------------------------------------------------------- */
+
   const isEmbed =
     new URLSearchParams(window.location.search).get("embed") === "1";
+
+  /* -------------------------------------------------------
+     STATE MANAGEMENT
+  ------------------------------------------------------- */
 
   const [isOpen, setIsOpen] = useState(isEmbed);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+
   const [messages, setMessages] = useState([]);
+
   const [showServices, setShowServices] = useState(true);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [suggestionsDismissed, setSuggestionsDismissed] =
-    useState(false);
+
+  const [conversationId, setConversationId] = useState(
+    createConversationId
+  );
+
+  /* -------------------------------------------------------
+     REFS
+  ------------------------------------------------------- */
 
   const chatBodyRef = useRef(null);
   const inputRef = useRef(null);
+
   const loadingRef = useRef(false);
   const scrollTimerRef = useRef(null);
-  const [conversationId, setConversationId] = useState(
-  () => crypto.randomUUID());
+
+  /* -------------------------------------------------------
+     DERIVED STATE
+  ------------------------------------------------------- */
 
   const suggestionsAreVisible =
-    showSuggestions && !suggestionsDismissed && !loading;
+    showSuggestions && !loading;
 
-  // Scroll helper: wait until the layout has updated before scrolling.
+  /* =======================================================
+     7. CHAT SCROLL FUNCTION
+  ======================================================= */
+
   function scrollChatToBottom(behavior = "smooth") {
-    const chatBody = chatBodyRef.current;
-
-    if (!chatBody) return;
+    if (!chatBodyRef.current) return;
 
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        const currentChatBody = chatBodyRef.current;
+        const chatBody = chatBodyRef.current;
 
-        if (!currentChatBody) return;
+        if (!chatBody) return;
 
-        currentChatBody.scrollTo({
-          top: currentChatBody.scrollHeight,
+        chatBody.scrollTo({
+          top: chatBody.scrollHeight,
           behavior,
         });
       });
     });
   }
 
-  // Scroll when messages or loading state changes.
+  /* =======================================================
+     8. SCROLL EFFECTS
+  ======================================================= */
+
+  // Scroll whenever messages or loading state changes.
+
   useEffect(() => {
     scrollChatToBottom("smooth");
   }, [messages, loading]);
 
-  // IMPORTANT:
-  // Suggestions change the available height of the chat body.
-  // Scroll again after the suggestions transition has completed.
+  // Scroll again after suggestion animation finishes.
+
   useEffect(() => {
     if (scrollTimerRef.current) {
       clearTimeout(scrollTimerRef.current);
@@ -176,7 +235,6 @@ export default function App() {
 
     scrollChatToBottom("auto");
 
-    // Allow CSS max-height/opacity transition to finish.
     scrollTimerRef.current = setTimeout(() => {
       scrollChatToBottom("smooth");
     }, 300);
@@ -186,20 +244,22 @@ export default function App() {
         clearTimeout(scrollTimerRef.current);
       }
     };
-  }, [
-    isOpen,
-    messages.length,
-    suggestionsAreVisible,
-  ]);
+  }, [isOpen, messages.length, suggestionsAreVisible]);
 
-  // Focus input when the chat opens.
+  /* =======================================================
+     9. INPUT FOCUS EFFECT
+  ======================================================= */
+
   useEffect(() => {
     if (isOpen && !loading) {
       inputRef.current?.focus();
     }
   }, [isOpen, loading]);
 
-  // Automatically show suggestions after the configured delay.
+  /* =======================================================
+     10. SUGGESTION DISPLAY EFFECT
+  ======================================================= */
+
   useEffect(() => {
     if (messages.length === 0 || loading || !isOpen) {
       setShowSuggestions(false);
@@ -215,15 +275,20 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [messages, loading, isOpen]);
 
+  /* =======================================================
+     11. REFRESH CHAT
+  ======================================================= */
+
   function refreshChat() {
     if (loadingRef.current) return;
 
     setMessages([]);
     setInput("");
+
     setShowServices(true);
     setShowSuggestions(false);
-    setSuggestionsDismissed(false);
-    setConversationId(crypto.randomUUID());
+
+    setConversationId(createConversationId());
 
     if (scrollTimerRef.current) {
       clearTimeout(scrollTimerRef.current);
@@ -231,6 +296,10 @@ export default function App() {
 
     inputRef.current?.focus();
   }
+
+  /* =======================================================
+     12. INPUT HANDLING
+  ======================================================= */
 
   function handleInputChange(event) {
     const value = event.target.value;
@@ -243,15 +312,21 @@ export default function App() {
     setInput(formattedValue);
   }
 
+  /* =======================================================
+     13. SEND MESSAGE / API CONNECTION
+  ======================================================= */
+
   async function sendMessage(text, isRetry = false) {
     const question = (text ?? input).trim();
 
     if (!question || loadingRef.current) return;
 
     loadingRef.current = true;
+
     setLoading(true);
     setShowSuggestions(false);
-    setSuggestionsDismissed(false);
+
+    // Add the user's message to the chat.
 
     if (!isRetry) {
       setMessages((oldMessages) => [
@@ -264,34 +339,50 @@ export default function App() {
       ]);
 
       playSound(sendAudio);
+
       setInput("");
       setShowServices(false);
     }
 
     try {
+      /* ---------------------------------------------------
+         API REQUEST TIMEOUT
+      --------------------------------------------------- */
+
       const controller = new AbortController();
 
       const timeoutId = setTimeout(() => {
         controller.abort();
-      }, 45000);
+      }, REQUEST_TIMEOUT);
 
       let response;
+
+      /* ---------------------------------------------------
+         SEND REQUEST TO FASTAPI BACKEND
+      --------------------------------------------------- */
 
       try {
         response = await fetch(`${API_URL}/chat`, {
           method: "POST",
+
           headers: {
             "Content-Type": "application/json",
           },
+
           body: JSON.stringify({
             question,
             conversation_id: conversationId,
           }),
+
           signal: controller.signal,
         });
       } finally {
         clearTimeout(timeoutId);
       }
+
+      /* ---------------------------------------------------
+         READ API RESPONSE
+      --------------------------------------------------- */
 
       let data;
 
@@ -303,6 +394,10 @@ export default function App() {
         );
       }
 
+      /* ---------------------------------------------------
+         HANDLE HTTP ERRORS
+      --------------------------------------------------- */
+
       if (!response.ok) {
         throw new Error(
           data.detail ||
@@ -311,16 +406,29 @@ export default function App() {
         );
       }
 
+      /* ---------------------------------------------------
+         EXTRACT CHATBOT ANSWER
+      --------------------------------------------------- */
+
       const answer =
         data.answer ||
         data.response ||
         data.message ||
         "Please contact the citizen service team for assistance.";
 
-      // Preserve the existing response delay.
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      /* ---------------------------------------------------
+         RESPONSE DISPLAY DELAY
+      --------------------------------------------------- */
+
+      await new Promise((resolve) => {
+        setTimeout(resolve, RESPONSE_DELAY);
+      });
 
       playSound(responseAudio);
+
+      /* ---------------------------------------------------
+         ADD ASSISTANT RESPONSE
+      --------------------------------------------------- */
 
       setMessages((oldMessages) => [
         ...oldMessages,
@@ -332,6 +440,10 @@ export default function App() {
         },
       ]);
     } catch (error) {
+      /* ---------------------------------------------------
+         ERROR HANDLING
+      --------------------------------------------------- */
+
       const errorMessage =
         error.name === "AbortError"
           ? "The request took too long. Please try again."
@@ -354,11 +466,18 @@ export default function App() {
     }
   }
 
-  // Render bold text and clickable URLs from chatbot responses.
+  /* =======================================================
+     14. FORMAT CHATBOT RESPONSE
+  ======================================================= */
+
   function renderMessageText(text) {
-    const parts = text.split(/(\*\*.*?\*\*|https?:\/\/[^\s]+)/g);
+    const parts = text.split(
+      /(\*\*.*?\*\*|https?:\/\/[^\s]+)/g
+    );
 
     return parts.map((part, index) => {
+      // Render bold text.
+
       if (part.startsWith("**") && part.endsWith("**")) {
         return (
           <strong key={index}>
@@ -366,6 +485,8 @@ export default function App() {
           </strong>
         );
       }
+
+      // Render clickable URLs.
 
       if (/^https?:\/\//.test(part)) {
         const url = part.replace(/[.,!?]+$/, "");
@@ -381,6 +502,7 @@ export default function App() {
             >
               {url}
             </a>
+
             {trailingText}
           </span>
         );
@@ -390,12 +512,13 @@ export default function App() {
     });
   }
 
-  // Services button controls the suggestion visibility.
+  /* =======================================================
+     15. TOGGLE SERVICES AND SUGGESTIONS
+  ======================================================= */
+
   function toggleServices() {
     setShowServices((visible) => !visible);
-
     setShowSuggestions((visible) => !visible);
-    setSuggestionsDismissed(false);
 
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -404,8 +527,16 @@ export default function App() {
     });
   }
 
+  /* =======================================================
+     16. UI RENDERING
+  ======================================================= */
+
   return (
     <>
+      {/* ---------------------------------------------------
+          FLOATING CHATBOT ICON
+      --------------------------------------------------- */}
+
       {!isEmbed && !isOpen && (
         <button
           type="button"
@@ -418,41 +549,38 @@ export default function App() {
         </button>
       )}
 
+      {/* ---------------------------------------------------
+          CHAT WINDOW
+      --------------------------------------------------- */}
+
       {isOpen && (
         <section
           className={`chat-widget ${
             isEmbed ? "chat-widget-embed" : ""
           }`}
           aria-label="Civicora citizen assistant"
-          style={
-            isEmbed
-              ? {
-                  position: "relative",
-                  inset: "auto",
-                  width: "100%",
-                  height: "100%",
-                  maxHeight: "100%",
-                  minHeight: 0,
-                  borderRadius: 0,
-                  boxShadow: "none",
-                  display: "flex",
-                  flexDirection: "column",
-                }
-              : undefined
-          }
         >
+          {/* ===============================================
+              CHAT HEADER
+          =============================================== */}
+
           <header className="chat-header civicora-header">
             <div className="chat-brand-icon">
               <Bot size={26} />
             </div>
 
             <div className="chat-brand-text">
-              <strong className="civicora-title">Civicora</strong>
+              <strong className="civicora-title">
+                Civicora
+              </strong>
+
               <span>
                 <i />
                 Your Digital Citizen Assistant
               </span>
             </div>
+
+            {/* Refresh button */}
 
             <button
               type="button"
@@ -465,32 +593,41 @@ export default function App() {
               <RefreshCw size={19} />
             </button>
 
-            {!isEmbed && (
-              <button
-                type="button"
-                className="chat-header-button"
-                onClick={() => setIsOpen(false)}
-                aria-label="Minimize chatbot"
-                title="Minimize"
-              >
-                <Minus size={22} />
-              </button>
-            )}
+
+
+            {/* Minimize button */}
+
+            <button
+              type="button"
+              className="chat-header-button"
+              onClick={() => {
+                if (isEmbed) {
+                  window.parent.postMessage(
+                    { type: "CIVICORA_MINIMIZE" },
+                    "*"
+                  );
+                } else {
+                  setIsOpen(false);
+                }
+              }}
+              aria-label="Minimize chatbot"
+              title="Minimize"
+            >
+              <Minus size={22} />
+            </button>
+
           </header>
+
+          {/* ===============================================
+              CHAT BODY
+          =============================================== */}
 
           <div
             className="chat-body"
             ref={chatBodyRef}
-            style={
-              isEmbed
-                ? {
-                    flex: "1 1 0",
-                    minHeight: 0,
-                    overflowY: "auto",
-                  }
-                : undefined
-            }
           >
+            {/* Welcome message */}
+
             {messages.length === 0 && (
               <div className="welcome-section">
                 <span className="welcome-eyebrow">
@@ -506,6 +643,10 @@ export default function App() {
               </div>
             )}
 
+            {/* ===========================================
+                CHAT MESSAGES
+            =========================================== */}
+
             {messages.map((message, index) => (
               <div
                 key={`${message.role}-${index}`}
@@ -515,6 +656,8 @@ export default function App() {
                     : "message-assistant"
                 }`}
               >
+                {/* Assistant avatar */}
+
                 {message.role === "assistant" && (
                   <div className="message-avatar">
                     <img
@@ -524,6 +667,8 @@ export default function App() {
                     />
                   </div>
                 )}
+
+                {/* Message content */}
 
                 <div className="message-content">
                   <div
@@ -537,6 +682,8 @@ export default function App() {
                   <time className="message-time">
                     {message.time}
                   </time>
+
+                  {/* Retry button */}
 
                   {message.isError && (
                     <button
@@ -553,6 +700,8 @@ export default function App() {
                   )}
                 </div>
 
+                {/* User avatar */}
+
                 {message.role === "user" && (
                   <div
                     className="user-message-avatar"
@@ -564,6 +713,10 @@ export default function App() {
                 )}
               </div>
             ))}
+
+            {/* ===========================================
+                LOADING INDICATOR
+            =========================================== */}
 
             {loading && (
               <div
@@ -584,6 +737,10 @@ export default function App() {
                 </div>
               </div>
             )}
+
+            {/* ===========================================
+                QUICK SERVICES
+            =========================================== */}
 
             {showServices && messages.length === 0 && (
               <div className="service-list">
@@ -613,13 +770,19 @@ export default function App() {
                         <small>{description}</small>
                       </span>
 
-                      <span className="service-arrow">›</span>
+                      <span className="service-arrow">
+                        ›
+                      </span>
                     </button>
                   )
                 )}
               </div>
             )}
           </div>
+
+          {/* ===============================================
+              SUGGESTED QUESTIONS
+          =============================================== */}
 
           {messages.length > 0 && (
             <section
@@ -651,6 +814,10 @@ export default function App() {
             </section>
           )}
 
+          {/* ===============================================
+              CHAT INPUT
+          =============================================== */}
+
           <form
             className="chat-composer"
             onSubmit={(event) => {
@@ -676,6 +843,10 @@ export default function App() {
               <Send size={20} />
             </button>
           </form>
+
+          {/* ===============================================
+              CHAT FOOTER
+          =============================================== */}
 
           <footer className="chat-footer">
             <span>Powered by Alo infotech</span>
